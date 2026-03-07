@@ -1,5 +1,5 @@
 <!-- scripts/seed-firestore.html -->
-<!-- Firestore'a görsel havuzunu yükleyen tek seferlik araç -->
+<!-- Firestore'a görsel havuzunu yükleyen araç -->
 <!-- Temizle + Yükle işlemini tek butonla yapar -->
 <!DOCTYPE html>
 <html>
@@ -90,22 +90,11 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // Giriş yap
         await signInAnonymously(auth);
         document.getElementById('log').textContent = 'Firebase bağlantısı hazır. Bir buton seçin.\n';
 
-        // ── Termogram listesi ──
+        // ── 6 Termogram ──
         const TERMOGRAMS = [
-            {
-                id: "1976_MART-01",
-                imageFile: "images/1976_MART-01.png",
-                label: "1976 Mart 01",
-                startDate: "1976-03-01T00:00:00",
-                endDate: "1976-03-08T00:00:00",
-                tempMin: -10, tempMax: 40,
-                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
-                traceCount: 0, maxTraces: 3, status: "available"
-            },
             {
                 id: "1977_MAYIS-03",
                 imageFile: "images/1977_MAYIS-03.png",
@@ -137,41 +126,11 @@
                 traceCount: 0, maxTraces: 3, status: "available"
             },
             {
-                id: "1981_ûUBAT-13",
-                imageFile: "images/1981_ûUBAT-13.png",
-                label: "1981 Şubat 13",
-                startDate: "1981-02-13T00:00:00",
-                endDate: "1981-02-20T00:00:00",
-                tempMin: -10, tempMax: 40,
-                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
-                traceCount: 0, maxTraces: 3, status: "available"
-            },
-            {
                 id: "1985_EYLöL-01",
                 imageFile: "images/1985_EYLöL-01.png",
                 label: "1985 Eylül 01",
                 startDate: "1985-09-01T00:00:00",
                 endDate: "1985-09-08T00:00:00",
-                tempMin: -10, tempMax: 40,
-                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
-                traceCount: 0, maxTraces: 3, status: "available"
-            },
-            {
-                id: "1985_EYLöL-17",
-                imageFile: "images/1985_EYLöL-17.png",
-                label: "1985 Eylül 17",
-                startDate: "1985-09-17T00:00:00",
-                endDate: "1985-09-24T00:00:00",
-                tempMin: -10, tempMax: 40,
-                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
-                traceCount: 0, maxTraces: 3, status: "available"
-            },
-            {
-                id: "1991_ûUBAT-05",
-                imageFile: "images/1991_ûUBAT-05.png",
-                label: "1991 Şubat 05",
-                startDate: "1991-02-05T00:00:00",
-                endDate: "1991-02-12T00:00:00",
                 tempMin: -10, tempMax: 40,
                 gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
                 traceCount: 0, maxTraces: 3, status: "available"
@@ -198,16 +157,10 @@
             }
         ];
 
-        // ── Bir koleksiyondaki tüm belgeleri sil ──
         async function deleteCollection(collectionName) {
             const log = document.getElementById('log');
             const snapshot = await getDocs(collection(db, collectionName));
-
-            if (snapshot.empty) {
-                log.textContent += `  ${collectionName}: zaten boş\n`;
-                return 0;
-            }
-
+            if (snapshot.empty) { log.textContent += `  ${collectionName}: zaten boş\n`; return 0; }
             let count = 0;
             for (const docSnap of snapshot.docs) {
                 await deleteDoc(doc(db, collectionName, docSnap.id));
@@ -217,7 +170,6 @@
             return count;
         }
 
-        // ── Termogramları yükle ──
         async function uploadTermograms() {
             const log = document.getElementById('log');
             for (const t of TERMOGRAMS) {
@@ -227,33 +179,22 @@
             log.textContent += `\n✅ Tamamlandı! ${TERMOGRAMS.length} termogram yüklendi.\n`;
         }
 
-        // ── Sadece Yükle (mevcut veriye ekle/üzerine yaz) ──
         window.seedOnly = async function () {
             const log = document.getElementById('log');
             log.textContent = '📥 Termogramlar yükleniyor...\n\n';
-            try {
-                await uploadTermograms();
-            } catch (err) {
-                log.textContent += `\n❌ Hata: ${err.message}\n`;
-            }
+            try { await uploadTermograms(); }
+            catch (err) { log.textContent += `\n❌ Hata: ${err.message}\n`; }
         };
 
-        // ── Temizle ve Yeniden Yükle ──
         window.cleanAndSeed = async function () {
             if (!confirm('Tüm veriler (termogramlar + çizimler) silinecek. Emin misiniz?')) return;
-
             const log = document.getElementById('log');
             log.textContent = '🗑️ Mevcut veriler temizleniyor...\n\n';
-
             try {
-                // Önce traces'i sil
                 await deleteCollection('traces');
-                // Sonra termograms'ı sil
                 await deleteCollection('termograms');
-
                 log.textContent += '\n📥 Termogramlar yeniden yükleniyor...\n\n';
                 await uploadTermograms();
-
             } catch (err) {
                 log.textContent += `\n❌ Hata: ${err.message}\n`;
                 log.textContent += `\nİpucu: Firestore güvenlik kurallarınızın delete işlemine izin verdiğinden emin olun.\n`;
