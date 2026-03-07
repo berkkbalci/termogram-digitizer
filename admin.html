@@ -21,11 +21,9 @@
             messagingSenderId: "818774713299",
             appId: "1:818774713299:web:1dbe686cde9147adc94526"
         });
-
         const db = getFirestore(app);
         const auth = getAuth(app);
         await signInAnonymously(auth);
-
         window.db = db;
         window.fireImports = { collection, getDocs, query, where };
     </script>
@@ -133,6 +131,7 @@
             background: #020617;
             padding: 16px;
             overflow-x: auto;
+            position: relative;
         }
 
         .canvas-section canvas {
@@ -159,6 +158,36 @@
             width: 24px;
             height: 4px;
             border-radius: 2px;
+        }
+
+        /* Hover tooltip */
+        .canvas-tooltip {
+            display: none;
+            position: absolute;
+            pointer-events: none;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid #fbbf24;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 0.8rem;
+            z-index: 10;
+            white-space: nowrap;
+        }
+
+        .canvas-tooltip .temp-value {
+            color: #fbbf24;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .canvas-tooltip .pixel-info {
+            color: #94a3b8;
+            font-size: 0.7rem;
+        }
+
+        /* Crosshair */
+        .canvas-section canvas.has-data {
+            cursor: crosshair;
         }
 
         .side-panel {
@@ -419,12 +448,6 @@
                 border-left: none;
                 border-top: 1px solid #334155;
             }
-
-            .leaderboard-table th,
-            .leaderboard-table td {
-                padding: 10px 8px;
-                font-size: 0.78rem;
-            }
         }
     </style>
 </head>
@@ -439,7 +462,7 @@
         <div class="tab" onclick="switchTab('leaderboard')">🏆 Genel Sıralama</div>
     </div>
 
-    <!-- TAB 1: TERMOGRAM ANALİZİ -->
+    <!-- TAB 1 -->
     <div id="analysisTab" class="analysis-section active">
         <div class="controls">
             <select id="termogramSelect" onchange="onTermogramSelect()">
@@ -452,9 +475,10 @@
             <div class="canvas-section">
                 <div id="emptyState" class="empty-state">
                     <div class="icon">🌡️</div>
-                    <p>Bir termogram seçerek çapraz doğrulama analizini görüntüleyin</p>
+                    <p>Bir termogram seçerek analizi görüntüleyin</p>
                 </div>
                 <canvas id="analysisCanvas" style="display:none;"></canvas>
+                <div class="canvas-tooltip" id="canvasTooltip"></div>
                 <div id="legendContainer" class="legend" style="display:none;"></div>
             </div>
             <div class="side-panel">
@@ -468,7 +492,7 @@
         </div>
     </div>
 
-    <!-- TAB 2: GENEL SIRALAMA -->
+    <!-- TAB 2 -->
     <div id="leaderboardTab" class="leaderboard-section">
         <div id="leaderboardContent">
             <div class="empty-state" style="padding:60px;">
@@ -481,12 +505,181 @@
     <script>
         const canvas = document.getElementById('analysisCanvas');
         const ctx = canvas.getContext('2d');
-        let allTermograms = [];
-        let allTraces = [];
+        let allTermograms = [], allTraces = [];
         const TRACE_COLORS = ['#f97316', '#22d3ee', '#a78bfa'];
         const AVERAGE_COLOR = '#22c55e';
 
-        // ── Tab geçişi ──
+        // ── Analiz sırasında kullanılan global veriler (tooltip için) ──
+        let currentAnalysisImage = null;   // Canvas'taki termogram görseli
+        let currentAveragePoints = [];     // Ortalama eğri noktaları
+        let currentTraceData = [];         // Trace verileri
+        let currentScores = [];            // Puanlar
+        let currentRefCalibration = null;  // Referans noktalarından hesaplanan kalibrasyon
+        let currentTermogramData = null;   // Aktif termogram Firestore verisi
+
+        // ═══════════════════════════════════════
+        // TOOLTIP — Mouse ile sıcaklık gösterimi
+        // ═══════════════════════════════════════
+
+        const tooltip = document.getElementById('canvasTooltip');
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!currentAnalysisImage || currentAveragePoints.length === 0) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const px = Math.round((e.clientX - rect.left) * scaleX);
+            const py = Math.round((e.clientY - rect.top) * scaleY);
+
+            // Ortalama eğrideki en yakın y değerini bul
+            const avgY = interpolateY(currentAveragePoints, px);
+            if (avgY === null) { tooltip.style.display = 'none'; return; }
+
+            // Sıcaklık hesapla
+            let tempText = '';
+            if (currentRefCalibration) {
+                // Referans noktalarından hesaplanan kalibrasyon ile
+                const temp = pixelYToTemp(avgY, currentRefCalibration);
+                tempText = `<div class="temp-value">${temp.toFixed(1)}°C</div>`;
+            } else if (currentTermogramData) {
+                // Fallback: Firestore'daki grid kalibrasyonu ile
+                const cal = currentTermogramData;
+                const ratio = (avgY - cal.gridTop) / (cal.gridBottom - cal.gridTop);
+                const temp = cal.tempMax - ratio * (cal.tempMax - cal.tempMin);
+                tempText = `<div class="temp-value">${temp.toFixed(1)}°C</div>`;
+            }
+
+            // Dikey çizgi çiz (crosshair)
+            redrawAnalysis();
+            ctx.beginPath();
+            ctx.moveTo(px, 0);
+            ctx.lineTo(px, canvas.height);
+            ctx.strokeStyle = 'rgba(251,191,36,0.4)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Ortalama eğri üzerindeki noktayı işaretle
+            ctx.beginPath();
+            ctx.arc(px, avgY, 5, 0, Math.PI * 2);
+            ctx.fillStyle = '#fbbf24';
+            ctx.fill();
+
+            // Tooltip pozisyonu
+            tooltip.innerHTML = tempText + `<div class="pixel-info">x:${px} y:${Math.round(avgY)}</div>`;
+            tooltip.style.display = 'block';
+
+            // Tooltip'i mouse'un yanında göster ama canvas dışına taşmasın
+            const tooltipX = e.clientX - rect.left + 20;
+            const tooltipY = e.clientY - rect.top - 10;
+            tooltip.style.left = tooltipX + 'px';
+            tooltip.style.top = tooltipY + 'px';
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            tooltip.style.display = 'none';
+            if (currentAnalysisImage) redrawAnalysis();
+        });
+
+        // ── Canvas'ı mevcut verilerle yeniden çiz (tooltip crosshair temizlemek için) ──
+        function redrawAnalysis() {
+            if (!currentAnalysisImage) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(currentAnalysisImage, 0, 0);
+
+            // Trace'leri yeniden çiz
+            currentTraceData.forEach((trace, i) => {
+                drawCurve(trace.rawPoints, TRACE_COLORS[i % TRACE_COLORS.length], 2);
+            });
+
+            // Ortalama eğriyi çiz
+            if (currentAveragePoints.length > 0) {
+                drawCurve(currentAveragePoints, AVERAGE_COLOR, 3);
+            }
+
+            // Referans noktalarını çiz
+            drawAllRefPoints();
+        }
+
+        // ═══════════════════════════════════════
+        // REFERANS NOKTALARINDAN KALİBRASYON
+        // ═══════════════════════════════════════
+
+        // Tüm trace'lerdeki referans noktalarını topla ve lineer regresyon yap
+        // y_piksel → sıcaklık dönüşümü için: temp = a * y_piksel + b
+        function buildRefCalibration(traces) {
+            const allRefPoints = [];
+            for (const trace of traces) {
+                if (trace.referencePoints && trace.referencePoints.length > 0) {
+                    for (const rp of trace.referencePoints) {
+                        allRefPoints.push({ y: rp.y, temp: rp.temperature });
+                    }
+                }
+            }
+
+            if (allRefPoints.length < 2) return null;
+
+            // Basit lineer regresyon: temp = a * y + b
+            const n = allRefPoints.length;
+            let sumY = 0, sumT = 0, sumYT = 0, sumYY = 0;
+            for (const p of allRefPoints) {
+                sumY += p.y;
+                sumT += p.temp;
+                sumYT += p.y * p.temp;
+                sumYY += p.y * p.y;
+            }
+            const denom = n * sumYY - sumY * sumY;
+            if (Math.abs(denom) < 0.001) return null;
+
+            const a = (n * sumYT - sumY * sumT) / denom;
+            const b = (sumT - a * sumY) / n;
+
+            return { a, b, pointCount: n };
+        }
+
+        // Piksel y değerini sıcaklığa çevir
+        function pixelYToTemp(y, calibration) {
+            return calibration.a * y + calibration.b;
+        }
+
+        // Canvas üzerinde referans noktalarını göster
+        function drawAllRefPoints() {
+            const allRefs = [];
+            for (const trace of currentTraceData) {
+                if (trace.referencePoints) {
+                    for (const rp of trace.referencePoints) {
+                        allRefs.push(rp);
+                    }
+                }
+            }
+
+            for (const ref of allRefs) {
+                // Küçük sarı daire
+                ctx.beginPath();
+                ctx.arc(ref.x, ref.y, 6, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(251,191,36,0.7)';
+                ctx.fill();
+                ctx.strokeStyle = '#fbbf24';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Etiket
+                const label = ref.temperature + '°C';
+                ctx.font = 'bold 14px system-ui';
+                ctx.fillStyle = '#fbbf24';
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 3;
+                ctx.strokeText(label, ref.x + 10, ref.y - 8);
+                ctx.fillText(label, ref.x + 10, ref.y - 8);
+            }
+        }
+
+        // ═══════════════════════════════════════
+        // TAB GEÇİŞİ + VERİ YÜKLEME
+        // ═══════════════════════════════════════
+
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
@@ -495,7 +688,6 @@
             if (tabName === 'leaderboard') buildLeaderboard();
         }
 
-        // ── Firebase bekle ve veri çek ──
         function waitForFirebase() {
             return new Promise(resolve => {
                 const check = () => (window.db && window.fireImports) ? resolve() : setTimeout(check, 100);
@@ -533,25 +725,23 @@
             const termogram = allTermograms.find(t => t.id === termId);
             if (!termogram) return;
 
+            currentTermogramData = termogram;
+
             const badge = document.getElementById('statusBadge');
             const countText = document.getElementById('traceCountText');
             countText.textContent = `${termogram.traceCount}/${termogram.maxTraces} çizim`;
-            if (termogram.traceCount >= termogram.maxTraces) {
-                badge.innerHTML = '<span class="badge badge-green">Tamamlandı</span>';
-            } else if (termogram.traceCount > 0) {
-                badge.innerHTML = '<span class="badge badge-yellow">Devam ediyor</span>';
-            } else {
-                badge.innerHTML = '<span class="badge badge-red">Henüz çizim yok</span>';
-            }
+            if (termogram.traceCount >= termogram.maxTraces) badge.innerHTML = '<span class="badge badge-green">Tamamlandı</span>';
+            else if (termogram.traceCount > 0) badge.innerHTML = '<span class="badge badge-yellow">Devam ediyor</span>';
+            else badge.innerHTML = '<span class="badge badge-red">Henüz çizim yok</span>';
 
             const traces = allTraces.filter(t => t.termogramId === termId);
             if (traces.length === 0) {
-                document.getElementById('analysisPanel').innerHTML = `
-                    <div class="waiting-message"><div class="icon">🕐</div>
-                    <p>Bu termogram için henüz çizim yapılmamış.</p></div>`;
+                document.getElementById('analysisPanel').innerHTML = `<div class="waiting-message"><div class="icon">🕐</div><p>Henüz çizim yapılmamış.</p></div>`;
                 document.getElementById('emptyState').style.display = 'flex';
                 canvas.style.display = 'none';
                 document.getElementById('legendContainer').style.display = 'none';
+                currentAnalysisImage = null;
+                currentAveragePoints = [];
                 return;
             }
             await drawAnalysis(termogram, traces);
@@ -559,36 +749,47 @@
 
         async function drawAnalysis(termogram, traces) {
             const img = await loadImage(termogram.imageFile);
+            currentAnalysisImage = img;
             canvas.width = img.width; canvas.height = img.height;
             ctx.drawImage(img, 0, 0);
             document.getElementById('emptyState').style.display = 'none';
             canvas.style.display = 'block';
+            canvas.classList.add('has-data');
             document.getElementById('legendContainer').style.display = 'flex';
 
-            const traceData = traces.map(t => ({
+            // Trace verilerini hazırla (referencePoints dahil)
+            currentTraceData = traces.map(t => ({
                 userName: t.userName || 'Anonim', userId: t.userId,
                 pointCount: t.pointCount, rawPoints: t.rawPoints || [],
-                calibratedData: t.calibratedData || []
+                calibratedData: t.calibratedData || [],
+                referencePoints: t.referencePoints || []
             }));
 
-            traceData.forEach((trace, i) => drawCurve(trace.rawPoints, TRACE_COLORS[i % TRACE_COLORS.length], 2));
+            // Trace'leri çiz
+            currentTraceData.forEach((trace, i) => drawCurve(trace.rawPoints, TRACE_COLORS[i % TRACE_COLORS.length], 2));
 
-            let averagePoints = [], scores = [];
-            if (traceData.length >= 2) {
-                averagePoints = computeAverageCurve(traceData.map(t => t.rawPoints));
-                drawCurve(averagePoints, AVERAGE_COLOR, 3);
-                scores = traceData.map((trace, i) => {
-                    const { mae, maxDev } = computeDeviation(trace.rawPoints, averagePoints);
+            // Ortalama eğri + puanlar
+            currentAveragePoints = [];
+            currentScores = [];
+            if (currentTraceData.length >= 2) {
+                currentAveragePoints = computeAverageCurve(currentTraceData.map(t => t.rawPoints));
+                drawCurve(currentAveragePoints, AVERAGE_COLOR, 3);
+                currentScores = currentTraceData.map((trace, i) => {
+                    const { mae, maxDev } = computeDeviation(trace.rawPoints, currentAveragePoints);
                     const maxAcceptable = canvas.height * 0.15;
                     const score = Math.max(0, Math.min(10, 10 * (1 - mae / maxAcceptable)));
-                    return {
-                        userName: trace.userName, userId: trace.userId, pointCount: trace.pointCount,
-                        mae, maxDev, score: Math.round(score * 10) / 10, color: TRACE_COLORS[i % TRACE_COLORS.length]
-                    };
+                    return { userName: trace.userName, userId: trace.userId, pointCount: trace.pointCount, mae, maxDev, score: Math.round(score * 10) / 10, color: TRACE_COLORS[i % TRACE_COLORS.length] };
                 });
             }
-            buildLegend(traceData, averagePoints.length > 0);
-            buildAnalysisPanel(termogram, traceData, scores);
+
+            // Referans noktalarından kalibrasyon oluştur
+            currentRefCalibration = buildRefCalibration(traces);
+
+            // Referans noktalarını canvas'a çiz
+            drawAllRefPoints();
+
+            buildLegend(currentTraceData, currentAveragePoints.length > 0, currentRefCalibration);
+            buildAnalysisPanel(termogram, currentTraceData, currentScores, currentRefCalibration);
         }
 
         // ═══════════════════════════════════════
@@ -598,19 +799,11 @@
         function buildLeaderboard() {
             const container = document.getElementById('leaderboardContent');
             const completedTermograms = allTermograms.filter(t => t.traceCount >= (t.maxTraces || 3));
-
             if (completedTermograms.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state" style="padding:60px;">
-                        <div class="icon">⏳</div>
-                        <p>Henüz hiçbir termogram 3 çizime ulaşmadı.</p>
-                        <p style="font-size:0.8rem; color:#64748b; margin-top:8px;">
-                            Puanlar ancak bir termogram 3 farklı kişi tarafından çizildiğinde hesaplanır.</p>
-                    </div>`;
+                container.innerHTML = `<div class="empty-state" style="padding:60px;"><div class="icon">⏳</div><p>Henüz hiçbir termogram 3 çizime ulaşmadı.</p></div>`;
                 return;
             }
 
-            // Her kullanıcının her termogramdaki puanını hesapla
             const userScores = {};
             for (const termogram of completedTermograms) {
                 const traces = allTraces.filter(t => t.termogramId === termogram.id);
@@ -619,23 +812,15 @@
                 if (averagePoints.length === 0) continue;
                 const estimatedHeight = (termogram.gridBottom - termogram.gridTop) || 950;
                 const maxAcceptable = estimatedHeight * 0.15;
-
                 traces.forEach(trace => {
                     const { mae } = computeDeviation(trace.rawPoints || [], averagePoints);
                     const score = Math.max(0, Math.min(10, 10 * (1 - mae / maxAcceptable)));
-                    const roundedScore = Math.round(score * 10) / 10;
                     const userId = trace.userId;
-                    if (!userScores[userId]) {
-                        userScores[userId] = { userName: trace.userName || 'Anonim', scores: [] };
-                    }
-                    userScores[userId].scores.push({
-                        termogramId: termogram.id, termogramLabel: termogram.label || termogram.id,
-                        score: roundedScore, mae: Math.round(mae * 10) / 10
-                    });
+                    if (!userScores[userId]) userScores[userId] = { userName: trace.userName || 'Anonim', scores: [] };
+                    userScores[userId].scores.push({ termogramId: termogram.id, termogramLabel: termogram.label || termogram.id, score: Math.round(score * 10) / 10, mae: Math.round(mae * 10) / 10 });
                 });
             }
 
-            // Toplamları hesapla ve sırala
             const sortedUsers = Object.entries(userScores).map(([userId, data]) => {
                 const totalScore = Math.round(data.scores.reduce((s, x) => s + x.score, 0) * 10) / 10;
                 const avgScore = Math.round((totalScore / data.scores.length) * 10) / 10;
@@ -643,37 +828,20 @@
                 return { userId, userName: data.userName, scores: data.scores, totalScore, avgScore, totalMAE };
             }).sort((a, b) => b.totalScore - a.totalScore);
 
-            if (sortedUsers.length === 0) {
-                container.innerHTML = `<div class="empty-state" style="padding:60px;"><div class="icon">📊</div><p>Henüz puanlanacak veri yok.</p></div>`;
-                return;
-            }
+            if (sortedUsers.length === 0) { container.innerHTML = `<div class="empty-state" style="padding:60px;"><div class="icon">📊</div><p>Henüz puanlanacak veri yok.</p></div>`; return; }
 
-            // Özet
-            let html = `
-                <div class="leaderboard-header">
-                    <h2>🏆 Genel Sıralama — Tüm Kullanıcılar</h2>
-                    <div class="leaderboard-summary">
-                        <div class="stat-box"><div class="value">${completedTermograms.length}</div><div class="label">Tamamlanan Termogram</div></div>
-                        <div class="stat-box"><div class="value">${sortedUsers.length}</div><div class="label">Toplam Kullanıcı</div></div>
-                    </div>
-                </div>`;
-
-            // Tablo
-            html += `<table class="leaderboard-table"><thead><tr>
-                <th>Sıra</th><th>Kullanıcı</th><th style="text-align:right">Çizim Sayısı</th>
-                <th style="text-align:right">Ort. Sapma</th><th style="text-align:right">Ort. Puan</th>
-                <th style="text-align:right">Toplam Puan</th></tr></thead><tbody>`;
-
+            let html = `<div class="leaderboard-header"><h2>🏆 Genel Sıralama</h2><div class="leaderboard-summary">
+                <div class="stat-box"><div class="value">${completedTermograms.length}</div><div class="label">Tamamlanan Termogram</div></div>
+                <div class="stat-box"><div class="value">${sortedUsers.length}</div><div class="label">Toplam Kullanıcı</div></div></div></div>`;
+            html += `<table class="leaderboard-table"><thead><tr><th>Sıra</th><th>Kullanıcı</th><th style="text-align:right">Çizim</th><th style="text-align:right">Ort. Sapma</th><th style="text-align:right">Ort. Puan</th><th style="text-align:right">Toplam Puan</th></tr></thead><tbody>`;
             sortedUsers.forEach((user, i) => {
                 const rank = i + 1;
                 const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
                 const sc = user.avgScore >= 8 ? '#22c55e' : user.avgScore >= 5 ? '#fbbf24' : '#ef4444';
                 html += `<tr class="${rank <= 3 ? 'top-row' : ''}" style="cursor:pointer;" onclick="showUserDetail('${user.userId}')">
-                    <td class="rank-cell">${medal}</td>
-                    <td class="name-cell">${rank === 1 ? '👑 ' : ''}${user.userName}</td>
-                    <td class="detail-cell">${user.scores.length} termogram</td>
-                    <td class="detail-cell">${user.totalMAE} px</td>
-                    <td class="detail-cell" style="color:${sc}; font-weight:600;">${user.avgScore}</td>
+                    <td class="rank-cell">${medal}</td><td class="name-cell">${rank === 1 ? '👑 ' : ''}${user.userName}</td>
+                    <td class="detail-cell">${user.scores.length}</td><td class="detail-cell">${user.totalMAE} px</td>
+                    <td class="detail-cell" style="color:${sc};font-weight:600;">${user.avgScore}</td>
                     <td class="score-cell" style="color:${sc}">${user.totalScore}</td></tr>`;
             });
             html += `</tbody></table><div id="userDetailArea"></div>`;
@@ -681,7 +849,6 @@
             window._leaderboardUsers = sortedUsers;
         }
 
-        // Kullanıcıya tıklayınca termogram bazlı döküm göster
         function showUserDetail(userId) {
             const user = window._leaderboardUsers.find(u => u.userId === userId);
             if (!user) return;
@@ -689,35 +856,21 @@
             const sorted = [...user.scores].sort((a, b) => b.score - a.score);
             let rows = sorted.map(s => {
                 const sc = s.score >= 8 ? '#22c55e' : s.score >= 5 ? '#fbbf24' : '#ef4444';
-                return `<tr><td>${s.termogramLabel}</td><td style="text-align:right;color:#94a3b8;">${s.mae} px</td>
-                    <td style="text-align:right;color:${sc};font-weight:600;">${s.score} / 10</td></tr>`;
+                return `<tr><td>${s.termogramLabel}</td><td style="text-align:right;color:#94a3b8;">${s.mae} px</td><td style="text-align:right;color:${sc};font-weight:600;">${s.score}/10</td></tr>`;
             }).join('');
-
-            area.innerHTML = `
-                <div class="user-detail-card">
-                    <h3>📋 ${user.userName} — Termogram Bazlı Puan Dökümü</h3>
-                    <table class="breakdown-table">
-                        <thead><tr><th>Termogram</th><th style="text-align:right">Sapma (MAE)</th><th style="text-align:right">Puan</th></tr></thead>
-                        <tbody>${rows}</tbody>
-                        <tfoot><tr style="border-top:2px solid #334155;">
-                            <td style="font-weight:600;">Toplam</td>
-                            <td style="text-align:right;color:#94a3b8;">${user.totalMAE} px ort.</td>
-                            <td style="text-align:right;font-weight:700;color:#93c5fd;font-size:1rem;">${user.totalScore}</td>
-                        </tr></tfoot>
-                    </table>
-                </div>`;
+            area.innerHTML = `<div class="user-detail-card"><h3>📋 ${user.userName} — Puan Dökümü</h3>
+                <table class="breakdown-table"><thead><tr><th>Termogram</th><th style="text-align:right">Sapma</th><th style="text-align:right">Puan</th></tr></thead>
+                <tbody>${rows}</tbody><tfoot><tr style="border-top:2px solid #334155;"><td style="font-weight:600;">Toplam</td>
+                <td style="text-align:right;color:#94a3b8;">${user.totalMAE} px ort.</td>
+                <td style="text-align:right;font-weight:700;color:#93c5fd;font-size:1rem;">${user.totalScore}</td></tr></tfoot></table></div>`;
             area.scrollIntoView({ behavior: 'smooth' });
         }
 
         // ═══════════════════════════════════════
-        // ÇİZİM + MATEMATİK FONKSİYONLARI
+        // ÇİZİM + MATEMATİK
         // ═══════════════════════════════════════
 
-        function loadImage(src) {
-            return new Promise((resolve, reject) => {
-                const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = src;
-            });
-        }
+        function loadImage(src) { return new Promise((res, rej) => { const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = src; }); }
 
         function drawCurve(points, color, lineWidth) {
             if (points.length < 2) return;
@@ -731,13 +884,13 @@
             const allMinX = Math.max(...sorted.map(pts => pts[0]?.x ?? 0));
             const allMaxX = Math.min(...sorted.map(pts => pts[pts.length - 1]?.x ?? 0));
             if (allMaxX <= allMinX) return [];
-            const step = 5, averagePoints = [];
+            const step = 5, avg = [];
             for (let x = allMinX; x <= allMaxX; x += step) {
                 let ySum = 0, count = 0;
                 for (const pts of sorted) { const y = interpolateY(pts, x); if (y !== null) { ySum += y; count++; } }
-                if (count > 0) averagePoints.push({ x, y: Math.round(ySum / count) });
+                if (count > 0) avg.push({ x, y: Math.round(ySum / count) });
             }
-            return averagePoints;
+            return avg;
         }
 
         function interpolateY(sortedPoints, targetX) {
@@ -758,28 +911,24 @@
             let totalError = 0, maxDev = 0, count = 0;
             for (const avgPt of averagePoints) {
                 const userY = interpolateY(sorted, avgPt.x);
-                if (userY !== null) {
-                    const err = Math.abs(userY - avgPt.y);
-                    totalError += err; if (err > maxDev) maxDev = err; count++;
-                }
+                if (userY !== null) { const err = Math.abs(userY - avgPt.y); totalError += err; if (err > maxDev) maxDev = err; count++; }
             }
-            const mae = count > 0 ? totalError / count : 0;
-            return { mae: Math.round(mae * 10) / 10, maxDev: Math.round(maxDev * 10) / 10 };
+            return { mae: Math.round((count > 0 ? totalError / count : 0) * 10) / 10, maxDev: Math.round(maxDev * 10) / 10 };
         }
 
         // ═══════════════════════════════════════
         // LEJANT + ANALİZ PANELİ
         // ═══════════════════════════════════════
 
-        function buildLegend(traceData, hasAverage) {
+        function buildLegend(traceData, hasAverage, refCal) {
             const c = document.getElementById('legendContainer'); c.innerHTML = '';
-            traceData.forEach((t, i) => {
-                c.innerHTML += `<div class="legend-item"><div class="legend-color" style="background:${TRACE_COLORS[i % TRACE_COLORS.length]}"></div><span>${t.userName}</span></div>`;
-            });
+            traceData.forEach((t, i) => { c.innerHTML += `<div class="legend-item"><div class="legend-color" style="background:${TRACE_COLORS[i % TRACE_COLORS.length]}"></div><span>${t.userName}</span></div>`; });
             if (hasAverage) c.innerHTML += `<div class="legend-item"><div class="legend-color" style="background:${AVERAGE_COLOR};height:5px;"></div><span style="font-weight:600;">Ortalama Eğri</span></div>`;
+            if (refCal) c.innerHTML += `<div class="legend-item"><div class="legend-color" style="background:#fbbf24;width:8px;height:8px;border-radius:50%;"></div><span>Referans Noktaları (${refCal.pointCount})</span></div>`;
+            c.innerHTML += `<div class="legend-item" style="color:#94a3b8; font-style:italic;">💡 Mouse'u eğri üzerinde gezdirerek sıcaklık değerlerini görün</div>`;
         }
 
-        function buildAnalysisPanel(termogram, traceData, scores) {
+        function buildAnalysisPanel(termogram, traceData, scores, refCal) {
             const panel = document.getElementById('analysisPanel');
             const tc = traceData.length, mt = termogram.maxTraces || 3;
 
@@ -787,31 +936,39 @@
                 let uh = traceData.map((t, i) => `<div class="user-card"><div class="user-card-header">
                     <span class="user-name" style="color:${TRACE_COLORS[i]}">${t.userName}</span>
                     <span style="font-size:0.75rem;color:#64748b;">${t.pointCount} nokta</span></div>
-                    <div class="user-stats"><div>Puan: <span class="stat-value" style="color:#fbbf24;">Bekleniyor...</span></div></div></div>`).join('');
+                    <div class="user-stats"><div>Referans noktası: <span class="stat-value">${t.referencePoints.length}</span></div>
+                    <div>Puan: <span class="stat-value" style="color:#fbbf24;">Bekleniyor...</span></div></div></div>`).join('');
                 panel.innerHTML = `<h2>Çizimler (${tc}/${mt})</h2>${uh}
                     <div class="waiting-message" style="margin-top:16px;"><div class="icon">⏳</div>
-                    <p>Puanlar ${mt}. çizim tamamlandığında hesaplanacak.</p>
-                    <p style="font-size:0.75rem;margin-top:8px;">Eksik: ${mt - tc} çizim daha</p></div>`;
+                    <p>Puanlar ${mt}. çizim tamamlandığında hesaplanacak.</p></div>`;
                 return;
             }
 
             const bestScore = Math.max(...scores.map(s => s.score));
             const avgMAE = scores.reduce((s, x) => s + x.mae, 0) / scores.length;
+
             let statsHTML = `<div class="stats-grid">
                 <div class="stat-box"><div class="value">${tc}</div><div class="label">Toplam Çizim</div></div>
-                <div class="stat-box"><div class="value">${Math.round(avgMAE * 10) / 10}px</div><div class="label">Ort. Sapma (MAE)</div></div></div>`;
+                <div class="stat-box"><div class="value">${Math.round(avgMAE * 10) / 10}px</div><div class="label">Ort. Sapma</div></div>
+                </div>`;
+
+            if (refCal) {
+                statsHTML += `<div style="background:#1c1917;border:1px solid #fbbf24;border-radius:8px;padding:10px;margin-bottom:16px;font-size:0.78rem;color:#fde68a;">
+                    📌 ${refCal.pointCount} referans noktasından kalibrasyon oluşturuldu. Mouse ile eğri üzerinde gezinerek sıcaklık değerlerini görebilirsiniz.</div>`;
+            }
 
             const ss = [...scores].sort((a, b) => b.score - a.score);
             let uh = ss.map((s, rank) => {
                 const isBest = s.score === bestScore;
                 const medal = rank === 0 ? '🥇' : rank === 1 ? '🥈' : '🥉';
                 const sc = s.score >= 8 ? '#22c55e' : s.score >= 5 ? '#fbbf24' : '#ef4444';
+                const refCount = traceData.find(t => t.userId === s.userId)?.referencePoints.length || 0;
                 return `<div class="user-card ${isBest ? 'winner' : ''}"><div class="user-card-header">
                     <span class="user-name">${isBest ? '<span class="crown">👑</span>' : ''}<span style="color:${s.color}">${medal} ${s.userName}</span></span>
                     <div style="text-align:right;"><div class="user-score" style="color:${sc}">${s.score}</div><div class="score-label">/ 10</div></div></div>
-                    <div class="user-stats"><div>Ort. Sapma (MAE): <span class="stat-value">${s.mae} px</span></div>
+                    <div class="user-stats"><div>Ort. Sapma: <span class="stat-value">${s.mae} px</span></div>
                     <div>Maks. Sapma: <span class="stat-value">${s.maxDev} px</span></div>
-                    <div>Nokta Sayısı: <span class="stat-value">${s.pointCount}</span></div></div></div>`;
+                    <div>Nokta: <span class="stat-value">${s.pointCount}</span> · Ref: <span class="stat-value">${refCount}</span></div></div></div>`;
             }).join('');
 
             panel.innerHTML = `<h2>Çapraz Doğrulama Analizi</h2>${statsHTML}<h2 style="margin-top:8px;">Kullanıcı Puanları</h2>${uh}`;
