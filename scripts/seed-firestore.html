@@ -1,22 +1,83 @@
 <!-- scripts/seed-firestore.html -->
-<!-- Bu dosyayı sadece 1 kez çalıştıracaksınız, ürüne dahil değil -->
+<!-- Firestore'a görsel havuzunu yükleyen tek seferlik araç -->
+<!-- Temizle + Yükle işlemini tek butonla yapar -->
 <!DOCTYPE html>
 <html>
 
 <head>
     <meta charset="UTF-8">
     <title>Firestore Seed</title>
+    <style>
+        body {
+            font-family: system-ui;
+            max-width: 700px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            margin: 5px;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            color: white;
+        }
+
+        .btn-seed {
+            background: #2563eb;
+        }
+
+        .btn-reset {
+            background: #dc2626;
+        }
+
+        .btn-seed:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-reset:hover {
+            background: #b91c1c;
+        }
+
+        pre {
+            background: #f3f4f6;
+            padding: 16px;
+            border-radius: 8px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .warning {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+    </style>
 </head>
 
 <body>
-    <h2>Firestore'a Görsel Havuzunu Yükle</h2>
-    <button onclick="seedData()">Yükle</button>
-    <pre id="log"></pre>
+    <h2>Firestore Görsel Havuzu Yönetimi</h2>
+
+    <div class="warning">
+        ⚠️ "Temizle ve Yeniden Yükle" butonu tüm mevcut verileri (termogramlar + çizimler) silip
+        sıfırdan yükler. Test verileriniz kaybolur.
+    </div>
+
+    <button class="btn-seed" onclick="seedOnly()">📥 Sadece Yükle (mevcut verilere ekle)</button>
+    <button class="btn-reset" onclick="cleanAndSeed()">🔄 Temizle ve Yeniden Yükle</button>
+
+    <pre id="log">Bekleniyor...</pre>
 
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-        import { getFirestore, doc, setDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+        import { getFirestore, doc, setDoc, collection, getDocs, deleteDoc }
+            from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+        import { getAuth, signInAnonymously }
+            from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
         const app = initializeApp({
             apiKey: "AIzaSyAiIza_wzTlnL6mrtu6pBJwDVQBOjfLlr8",
@@ -28,11 +89,12 @@
         });
         const db = getFirestore(app);
         const auth = getAuth(app);
-        await signInAnonymously(auth);
-        console.log('Firebase auth başarılı');
 
-        // ── Tüm termogramların listesi ──
-        // Her birinin kalibrasyon bilgisini termograma bakarak doldurun
+        // Giriş yap
+        await signInAnonymously(auth);
+        document.getElementById('log').textContent = 'Firebase bağlantısı hazır. Bir buton seçin.\n';
+
+        // ── Termogram listesi ──
         const TERMOGRAMS = [
             {
                 id: "1976_MART-01",
@@ -136,14 +198,66 @@
             }
         ];
 
+        // ── Bir koleksiyondaki tüm belgeleri sil ──
+        async function deleteCollection(collectionName) {
+            const log = document.getElementById('log');
+            const snapshot = await getDocs(collection(db, collectionName));
 
-        window.seedData = async function () {
+            if (snapshot.empty) {
+                log.textContent += `  ${collectionName}: zaten boş\n`;
+                return 0;
+            }
+
+            let count = 0;
+            for (const docSnap of snapshot.docs) {
+                await deleteDoc(doc(db, collectionName, docSnap.id));
+                count++;
+            }
+            log.textContent += `  ${collectionName}: ${count} belge silindi\n`;
+            return count;
+        }
+
+        // ── Termogramları yükle ──
+        async function uploadTermograms() {
             const log = document.getElementById('log');
             for (const t of TERMOGRAMS) {
                 await setDoc(doc(db, "termograms", t.id), t);
-                log.textContent += `✓ ${t.id} yüklendi\n`;
+                log.textContent += `  ✓ ${t.id} yüklendi\n`;
             }
-            log.textContent += `\nTamamlandı! ${TERMOGRAMS.length} termogram yüklendi.`;
+            log.textContent += `\n✅ Tamamlandı! ${TERMOGRAMS.length} termogram yüklendi.\n`;
+        }
+
+        // ── Sadece Yükle (mevcut veriye ekle/üzerine yaz) ──
+        window.seedOnly = async function () {
+            const log = document.getElementById('log');
+            log.textContent = '📥 Termogramlar yükleniyor...\n\n';
+            try {
+                await uploadTermograms();
+            } catch (err) {
+                log.textContent += `\n❌ Hata: ${err.message}\n`;
+            }
+        };
+
+        // ── Temizle ve Yeniden Yükle ──
+        window.cleanAndSeed = async function () {
+            if (!confirm('Tüm veriler (termogramlar + çizimler) silinecek. Emin misiniz?')) return;
+
+            const log = document.getElementById('log');
+            log.textContent = '🗑️ Mevcut veriler temizleniyor...\n\n';
+
+            try {
+                // Önce traces'i sil
+                await deleteCollection('traces');
+                // Sonra termograms'ı sil
+                await deleteCollection('termograms');
+
+                log.textContent += '\n📥 Termogramlar yeniden yükleniyor...\n\n';
+                await uploadTermograms();
+
+            } catch (err) {
+                log.textContent += `\n❌ Hata: ${err.message}\n`;
+                log.textContent += `\nİpucu: Firestore güvenlik kurallarınızın delete işlemine izin verdiğinden emin olun.\n`;
+            }
         };
     </script>
 </body>
