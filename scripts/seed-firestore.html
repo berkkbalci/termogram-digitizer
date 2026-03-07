@@ -1,0 +1,151 @@
+<!-- scripts/seed-firestore.html -->
+<!-- Bu dosyayı sadece 1 kez çalıştıracaksınız, ürüne dahil değil -->
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Firestore Seed</title>
+</head>
+
+<body>
+    <h2>Firestore'a Görsel Havuzunu Yükle</h2>
+    <button onclick="seedData()">Yükle</button>
+    <pre id="log"></pre>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+        import { getFirestore, doc, setDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+        const app = initializeApp({
+            apiKey: "AIzaSyAiIza_wzTlnL6mrtu6pBJwDVQBOjfLlr8",
+            authDomain: "termogram-digitizer.firebaseapp.com",
+            projectId: "termogram-digitizer",
+            storageBucket: "termogram-digitizer.firebasestorage.app",
+            messagingSenderId: "818774713299",
+            appId: "1:818774713299:web:1dbe686cde9147adc94526"
+        });
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        await signInAnonymously(auth);
+        console.log('Firebase auth başarılı');
+
+        // ── Tüm termogramların listesi ──
+        // Her birinin kalibrasyon bilgisini termograma bakarak doldurun
+        const TERMOGRAMS = [
+            {
+                id: "1976_MART-01",
+                imageFile: "images/1976_MART-01.png",
+                label: "1976 Mart 01",
+                startDate: "1976-03-01T00:00:00",
+                endDate: "1976-03-08T00:00:00",
+                tempMin: -10, tempMax: 40,
+                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
+                traceCount: 0, maxTraces: 3, status: "available"
+            },
+            {
+                id: "1977_MAYIS-03",
+                imageFile: "images/1977_MAYIS-03.png",
+                label: "1977 Mayıs 03",
+                startDate: "1977-05-03T00:00:00",
+                endDate: "1977-05-10T00:00:00",
+                tempMin: -10, tempMax: 40,
+                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
+                traceCount: 0, maxTraces: 3, status: "available"
+            },
+            {
+                id: "1977_NòSAN-04",
+                imageFile: "images/1977_NòSAN-04.png",
+                label: "1977 Nisan 04",
+                startDate: "1977-04-04T00:00:00",
+                endDate: "1977-04-11T00:00:00",
+                tempMin: -10, tempMax: 40,
+                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
+                traceCount: 0, maxTraces: 3, status: "available"
+            },
+            {
+                id: "1977_NòSAN-25",
+                imageFile: "images/1977_NòSAN-25.png",
+                label: "1977 Nisan 25",
+                startDate: "1977-04-25T00:00:00",
+                endDate: "1977-05-02T00:00:00",
+                tempMin: -10, tempMax: 40,
+                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
+                traceCount: 0, maxTraces: 3, status: "available"
+            },
+            {
+                id: "1981_ûUBAT-13",
+                imageFile: "images/1981_ûUBAT-13.png",
+                label: "1981 Şubat 13",
+                startDate: "1981-02-13T00:00:00",
+                endDate: "1981-02-20T00:00:00",
+                tempMin: -10, tempMax: 40,
+                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
+                traceCount: 0, maxTraces: 3, status: "available"
+            },
+            {
+                id: "1985_EYLöL-01",
+                imageFile: "images/1985_EYLöL-01.png",
+                label: "1985 Eylül 01",
+                startDate: "1985-09-01T00:00:00",
+                endDate: "1985-09-08T00:00:00",
+                tempMin: -10, tempMax: 40,
+                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
+                traceCount: 0, maxTraces: 3, status: "available"
+            },
+            {
+                id: "1985_EYLöL-17",
+                imageFile: "images/1985_EYLöL-17.png",
+                label: "1985 Eylül 17",
+                startDate: "1985-09-17T00:00:00",
+                endDate: "1985-09-24T00:00:00",
+                tempMin: -10, tempMax: 40,
+                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
+                traceCount: 0, maxTraces: 3, status: "available"
+            },
+            {
+                id: "1991_ûUBAT-05",
+                imageFile: "images/1991_ûUBAT-05.png",
+                label: "1991 Şubat 05",
+                startDate: "1991-02-05T00:00:00",
+                endDate: "1991-02-12T00:00:00",
+                tempMin: -10, tempMax: 40,
+                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
+                traceCount: 0, maxTraces: 3, status: "available"
+            },
+            {
+                id: "1998_MART-05",
+                imageFile: "images/1998_MART-05.png",
+                label: "1998 Mart 05",
+                startDate: "1998-03-05T00:00:00",
+                endDate: "1998-03-12T00:00:00",
+                tempMin: -10, tempMax: 40,
+                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
+                traceCount: 0, maxTraces: 3, status: "available"
+            },
+            {
+                id: "1998_MART-16",
+                imageFile: "images/1998_MART-16.png",
+                label: "1998 Mart 16",
+                startDate: "1998-03-16T00:00:00",
+                endDate: "1998-03-23T00:00:00",
+                tempMin: -10, tempMax: 40,
+                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
+                traceCount: 0, maxTraces: 3, status: "available"
+            }
+        ];
+
+
+        window.seedData = async function () {
+            const log = document.getElementById('log');
+            for (const t of TERMOGRAMS) {
+                await setDoc(doc(db, "termograms", t.id), t);
+                log.textContent += `✓ ${t.id} yüklendi\n`;
+            }
+            log.textContent += `\nTamamlandı! ${TERMOGRAMS.length} termogram yüklendi.`;
+        };
+    </script>
+</body>
+
+</html>
