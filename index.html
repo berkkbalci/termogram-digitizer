@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Termogram Dijitalleştirici</title>
+
+    <script type="module">
+        // Firebase SDK — CDN'den yükleniyor
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+        import {
+            getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc,
+            query, where, orderBy, limit, increment, serverTimestamp
+        }
+            from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged }
+            from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+        // ── Gerçek Firebase değerleriniz ──
+        const firebaseConfig = {
+            apiKey: "AIzaSyAiIza_wzTlnL6mrtu6pBJwDVQBOjfLlr8",
+            authDomain: "termogram-digitizer.firebaseapp.com",
+            projectId: "termogram-digitizer",
+            storageBucket: "termogram-digitizer.firebasestorage.app",
+            messagingSenderId: "818774713299",
+            appId: "1:818774713299:web:1dbe686cde9147adc94526"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        window.db = db;
+        window.auth = auth;
+        window.fbImports = {
+            collection, doc, getDoc, getDocs, addDoc, updateDoc,
+            query, where, orderBy, limit, increment, serverTimestamp
+        };
+    </script>
+</head>
+
+<body>
+    <!-- Sayfa içeriği sonra gelecek -->
+</body>
+
+</html>
