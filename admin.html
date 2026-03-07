@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel — Termogram Analiz</title>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+        import { getFirestore, collection, getDocs, query, where }
+            from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+        import { getAuth, signInAnonymously }
+            from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+        const app = initializeApp({
+            apiKey: "AIzaSyAiIza_wzTlnL6mrtu6pBJwDVQBOjfLlr8",
+            authDomain: "termogram-digitizer.firebaseapp.com",
+            projectId: "termogram-digitizer",
+            storageBucket: "termogram-digitizer.firebasestorage.app",
+            messagingSenderId: "818774713299",
+            appId: "1:818774713299:web:1dbe686cde9147adc94526"
+        });
+
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        await signInAnonymously(auth);
+
+        window.db = db;
+        window.fireImports = { collection, getDocs, query, where };
+    </script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+
+        .top-bar {
+            padding: 16px 24px;
+            background: #1e293b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .top-bar h1 {
+            font-size: 1.3rem;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            padding: 16px 24px;
+            background: #1e3a5f;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .controls select {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: #e2e8f0;
+            font-size: 0.9rem;
+            min-width: 250px;
+        }
+
+        .controls .badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-green {
+            background: #065f46;
+            color: #6ee7b7;
+        }
+
+        .badge-yellow {
+            background: #713f12;
+            color: #fde68a;
+        }
+
+        .badge-red {
+            background: #7f1d1d;
+            color: #fca5a5;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            gap: 0;
+            min-height: calc(100vh - 120px);
+        }
+
+        /* ── Canvas Bölgesi ── */
+        .canvas-section {
+            background: #020617;
+            padding: 16px;
+            overflow-x: auto;
+        }
+
+        .canvas-section canvas {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #1e293b;
+        }
+
+        /* ── Lejant ── */
+        .legend {
+            display: flex;
+            gap: 16px;
+            padding: 12px 0;
+            flex-wrap: wrap;
+            font-size: 0.8rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-color {
+            width: 24px;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        /* ── Sağ Panel ── */
+        .side-panel {
+            background: #1e293b;
+            padding: 20px;
+            overflow-y: auto;
+            border-left: 1px solid #334155;
+        }
+
+        .side-panel h2 {
+            font-size: 1rem;
+            margin-bottom: 16px;
+            color: #93c5fd;
+        }
+
+        /* Kullanıcı kartları */
+        .user-card {
+            background: #0f172a;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid #334155;
+        }
+
+        .user-card.winner {
+            border-color: #fbbf24;
+            box-shadow: 0 0 12px rgba(251, 191, 36, 0.15);
+        }
+
+        .user-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .user-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .user-score {
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        .score-label {
+            font-size: 0.65rem;
+            color: #94a3b8;
+        }
+
+        .user-stats {
+            font-size: 0.78rem;
+            color: #94a3b8;
+        }
+
+        .user-stats div {
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            color: #e2e8f0;
+            font-weight: 500;
+        }
+
+        .crown {
+            font-size: 1.2rem;
+            margin-right: 4px;
+        }
+
+        /* İstatistik kutuları */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #334155;
+        }
+
+        .stat-box .value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #93c5fd;
+        }
+
+        .stat-box .label {
+            font-size: 0.65rem;
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+        /* Puan henüz yok mesajı */
+        .waiting-message {
+            background: #1c1917;
+            border: 1px dashed #78716c;
+            border-radius: 10px;
+            padding: 24px;
+            text-align: center;
+            color: #a8a29e;
+        }
+
+        .waiting-message .icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        /* Boş durum */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #475569;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: 12px;
+        }
+
+        /* Mobil uyum */
+        @media (max-width: 900px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .side-panel {
+                border-left: none;
+                border-top: 1px solid #334155;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="top-bar">
+        <h1>📊 Admin Panel — Çapraz Doğrulama Analizi</h1>
+    </div>
+
+    <div class="controls">
+        <select id="termogramSelect" onchange="onTermogramSelect()">
+            <option value="">Termogram seçin...</option>
+        </select>
+        <span id="statusBadge"></span>
+        <span id="traceCountText" style="font-size:0.8rem; color:#94a3b8;"></span>
+    </div>
+
+    <div class="main-grid">
+        <!-- Sol: Canvas -->
+        <div class="canvas-section">
+            <div id="emptyState" class="empty-state">
+                <div class="icon">🌡️</div>
+                <p>Bir termogram seçerek çapraz doğrulama analizini görüntüleyin</p>
+            </div>
+            <canvas id="analysisCanvas" style="display:none;"></canvas>
+            <div id="legendContainer" class="legend" style="display:none;"></div>
+        </div>
+
+        <!-- Sağ: Analiz Paneli -->
+        <div class="side-panel">
+            <div id="analysisPanel">
+                <div class="empty-state" style="height:auto; padding:60px 20px;">
+                    <div class="icon">📈</div>
+                    <p>Analiz sonuçları burada görünecek</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════
+        // DEĞİŞKENLER
+        // ═══════════════════════════════════════
+        const canvas = document.getElementById('analysisCanvas');
+        const ctx = canvas.getContext('2d');
+        let allTermograms = [];  // Firestore'dan çekilen tüm termogramlar
+
+        // Çizim renkleri: her kullanıcı farklı renk
+        const TRACE_COLORS = ['#f97316', '#22d3ee', '#a78bfa']; // turuncu, cyan, mor
+        const AVERAGE_COLOR = '#22c55e'; // yeşil — ortalama eğri
+
+        // ═══════════════════════════════════════
+        // FİREBASE'DEN VERİ ÇEK
+        // ═══════════════════════════════════════
+
+        // Firebase'in hazır olmasını bekle
+        function waitForFirebase() {
+            return new Promise(resolve => {
+                const check = () => (window.db && window.fireImports) ? resolve() : setTimeout(check, 100);
+                check();
+            });
+        }
+
+        // Sayfa yüklendiğinde termogram listesini çek
+        async function init() {
+            await waitForFirebase();
+            const { collection, getDocs } = window.fireImports;
+
+            const snapshot = await getDocs(collection(window.db, 'termograms'));
+            allTermograms = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            // Dropdown'ı doldur
+            const select = document.getElementById('termogramSelect');
+            // Önce tamamlananları, sonra devam edenleri göster
+            const sorted = [...allTermograms].sort((a, b) => b.traceCount - a.traceCount);
+            for (const t of sorted) {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                const statusIcon = t.traceCount >= t.maxTraces ? '✅' : `⏳ ${t.traceCount}/${t.maxTraces}`;
+                opt.textContent = `${statusIcon}  ${t.label || t.id}`;
+                select.appendChild(opt);
+            }
+        }
+
+        init();
+
+        // ═══════════════════════════════════════
+        // TERMOGRAM SEÇİLDİĞİNDE
+        // ═══════════════════════════════════════
+
+        async function onTermogramSelect() {
+            const termId = document.getElementById('termogramSelect').value;
+            if (!termId) return;
+
+            const termogram = allTermograms.find(t => t.id === termId);
+            if (!termogram) return;
+
+            // Durum badge'i güncelle
+            const badge = document.getElementById('statusBadge');
+            const countText = document.getElementById('traceCountText');
+            countText.textContent = `${termogram.traceCount}/${termogram.maxTraces} çizim`;
+
+            if (termogram.traceCount >= termogram.maxTraces) {
+                badge.innerHTML = '<span class="badge badge-green">Tamamlandı</span>';
+            } else if (termogram.traceCount > 0) {
+                badge.innerHTML = '<span class="badge badge-yellow">Devam ediyor</span>';
+            } else {
+                badge.innerHTML = '<span class="badge badge-red">Henüz çizim yok</span>';
+            }
+
+            // Bu termograma ait trace'leri çek
+            await waitForFirebase();
+            const { collection, getDocs, query, where } = window.fireImports;
+
+            const tracesQ = query(
+                collection(window.db, 'traces'),
+                where('termogramId', '==', termId)
+            );
+            const tracesSnap = await getDocs(tracesQ);
+            const traces = tracesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            if (traces.length === 0) {
+                document.getElementById('analysisPanel').innerHTML = `
+                    <div class="waiting-message">
+                        <div class="icon">🕐</div>
+                        <p>Bu termogram için henüz çizim yapılmamış.</p>
+                    </div>`;
+                document.getElementById('emptyState').style.display = 'flex';
+                canvas.style.display = 'none';
+                document.getElementById('legendContainer').style.display = 'none';
+                return;
+            }
+
+            // Görseli yükle ve üzerine çiz
+            await drawAnalysis(termogram, traces);
+        }
+
+        // ═══════════════════════════════════════
+        // ANALİZ VE GÖRSELLEŞTİRME
+        // ═══════════════════════════════════════
+
+        async function drawAnalysis(termogram, traces) {
+            // 1) Termogram görselini canvas'a yükle
+            const img = await loadImage(termogram.imageFile);
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            // Canvas'ı göster
+            document.getElementById('emptyState').style.display = 'none';
+            canvas.style.display = 'block';
+            document.getElementById('legendContainer').style.display = 'flex';
+
+            // 2) Her trace'in rawPoints dizisini al
+            //    rawPoints: [{x, y}, {x, y}, ...]
+            const traceData = traces.map(t => ({
+                userName: t.userName || 'Anonim',
+                userId: t.userId,
+                pointCount: t.pointCount,
+                rawPoints: t.rawPoints || [],
+                calibratedData: t.calibratedData || []
+            }));
+
+            // 3) Her trace'i farklı renkte çiz
+            traceData.forEach((trace, i) => {
+                const color = TRACE_COLORS[i % TRACE_COLORS.length];
+                drawCurve(trace.rawPoints, color, 2);
+            });
+
+            // 4) Ortalama eğriyi hesapla ve çiz (sadece 2+ trace varsa)
+            let averagePoints = [];
+            let scores = [];
+
+            if (traceData.length >= 2) {
+                averagePoints = computeAverageCurve(traceData.map(t => t.rawPoints));
+                drawCurve(averagePoints, AVERAGE_COLOR, 3);
+
+                // 5) Her kullanıcının ortalamaya sapmasını hesapla
+                scores = traceData.map((trace, i) => {
+                    const { mae, maxDev } = computeDeviation(trace.rawPoints, averagePoints);
+                    // Puanlama: MAE'ye göre 10 üzerinden
+                    // MAE 0 → 10 puan, MAE >= maxAcceptable → 0 puan
+                    const maxAcceptable = canvas.height * 0.15; // Görsel yüksekliğinin %15'i
+                    const score = Math.max(0, Math.min(10, 10 * (1 - mae / maxAcceptable)));
+                    return {
+                        userName: trace.userName,
+                        userId: trace.userId,
+                        pointCount: trace.pointCount,
+                        mae: mae,
+                        maxDev: maxDev,
+                        score: Math.round(score * 10) / 10,
+                        color: TRACE_COLORS[i % TRACE_COLORS.length]
+                    };
+                });
+            }
+
+            // 6) Lejant oluştur
+            buildLegend(traceData, averagePoints.length > 0);
+
+            // 7) Sağ paneli güncelle
+            buildAnalysisPanel(termogram, traceData, scores);
+        }
+
+        // ═══════════════════════════════════════
+        // ÇİZİM FONKSİYONLARI
+        // ═══════════════════════════════════════
+
+        function loadImage(src) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = src;
+            });
+        }
+
+        // Nokta dizisini canvas üzerine eğri olarak çiz
+        function drawCurve(points, color, lineWidth) {
+            if (points.length < 2) return;
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            ctx.strokeStyle = color;
+            ctx.lineWidth = lineWidth;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+        }
+
+        // ═══════════════════════════════════════
+        // MATEMATİK: ORTALAMA EĞRİ
+        // ═══════════════════════════════════════
+
+        // Ortalama eğriyi hesaplar.
+        // Farklı kullanıcılar farklı sayıda nokta toplamış olabilir ve
+        // noktaları farklı x pozisyonlarında olabilir. Bu yüzden:
+        // 1) Tüm eğrileri aynı x eksenine normalleştir (resample)
+        // 2) Her x noktasında y değerlerinin ortalamasını al
+        function computeAverageCurve(allRawPoints) {
+            // Her trace'i x'e göre sırala
+            const sorted = allRawPoints.map(pts =>
+                [...pts].sort((a, b) => a.x - b.x)
+            );
+
+            // Tüm trace'lerin kapsadığı x aralığını bul
+            const allMinX = Math.max(...sorted.map(pts => pts[0].x));
+            const allMaxX = Math.min(...sorted.map(pts => pts[pts.length - 1].x));
+
+            if (allMaxX <= allMinX) return [];
+
+            // Ortak x noktaları oluştur (her 5 pikselde bir örnek)
+            const step = 5;
+            const averagePoints = [];
+
+            for (let x = allMinX; x <= allMaxX; x += step) {
+                let ySum = 0;
+                let count = 0;
+
+                for (const pts of sorted) {
+                    const y = interpolateY(pts, x);
+                    if (y !== null) {
+                        ySum += y;
+                        count++;
+                    }
+                }
+
+                if (count > 0) {
+                    averagePoints.push({ x: x, y: Math.round(ySum / count) });
+                }
+            }
+
+            return averagePoints;
+        }
+
+        // Belirli bir x değeri için y'yi lineer interpolasyon ile bul
+        // Eğrinin iki noktası arasında kalan x değeri için
+        // doğrusal olarak y değerini tahmin eder
+        function interpolateY(sortedPoints, targetX) {
+            // targetX, eğrinin dışındaysa null döndür
+            if (targetX < sortedPoints[0].x || targetX > sortedPoints[sortedPoints.length - 1].x) {
+                return null;
+            }
+
+            // Hedef x'in hemen solundaki ve sağındaki noktaları bul
+            for (let i = 0; i < sortedPoints.length - 1; i++) {
+                const p1 = sortedPoints[i];
+                const p2 = sortedPoints[i + 1];
+
+                if (targetX >= p1.x && targetX <= p2.x) {
+                    // Doğrusal interpolasyon: iki nokta arasında orantısal y değeri
+                    if (p2.x === p1.x) return p1.y;
+                    const ratio = (targetX - p1.x) / (p2.x - p1.x);
+                    return p1.y + ratio * (p2.y - p1.y);
+                }
+            }
+            return null;
+        }
+
+        // ═══════════════════════════════════════
+        // MATEMATİK: SAPMA HESABI
+        // ═══════════════════════════════════════
+
+        // Bir kullanıcının çiziminin ortalama eğriye sapmasını hesaplar
+        // MAE (Mean Absolute Error): Ortalama mutlak hata (piksel cinsinden)
+        // maxDev: Maksimum sapma noktası
+        function computeDeviation(rawPoints, averagePoints) {
+            const sorted = [...rawPoints].sort((a, b) => a.x - b.x);
+            const avgSorted = [...averagePoints]; // zaten sıralı
+
+            let totalError = 0;
+            let maxDev = 0;
+            let count = 0;
+
+            // Ortalama eğrideki her x noktasında,
+            // kullanıcının eğrisindeki y değerini interpolasyonla bul
+            // ve aradaki farkın mutlak değerini hesapla
+            for (const avgPt of avgSorted) {
+                const userY = interpolateY(sorted, avgPt.x);
+                if (userY !== null) {
+                    const error = Math.abs(userY - avgPt.y);
+                    totalError += error;
+                    if (error > maxDev) maxDev = error;
+                    count++;
+                }
+            }
+
+            const mae = count > 0 ? totalError / count : 0;
+            return { mae: Math.round(mae * 10) / 10, maxDev: Math.round(maxDev * 10) / 10 };
+        }
+
+        // ═══════════════════════════════════════
+        // LEJANT
+        // ═══════════════════════════════════════
+
+        function buildLegend(traceData, hasAverage) {
+            const container = document.getElementById('legendContainer');
+            container.innerHTML = '';
+
+            traceData.forEach((trace, i) => {
+                const color = TRACE_COLORS[i % TRACE_COLORS.length];
+                container.innerHTML += `
+                    <div class="legend-item">
+                        <div class="legend-color" style="background:${color}"></div>
+                        <span>${trace.userName}</span>
+                    </div>`;
+            });
+
+            if (hasAverage) {
+                container.innerHTML += `
+                    <div class="legend-item">
+                        <div class="legend-color" style="background:${AVERAGE_COLOR}; height:5px;"></div>
+                        <span style="font-weight:600;">Ortalama Eğri</span>
+                    </div>`;
+            }
+        }
+
+        // ═══════════════════════════════════════
+        // SAĞ PANEL — ANALİZ SONUÇLARI
+        // ═══════════════════════════════════════
+
+        function buildAnalysisPanel(termogram, traceData, scores) {
+            const panel = document.getElementById('analysisPanel');
+            const traceCount = traceData.length;
+            const maxTraces = termogram.maxTraces || 3;
+
+            // ── Eğer 3 çizim tamamlanmamışsa: puanları gösterme ──
+            if (traceCount < maxTraces) {
+                let usersHTML = traceData.map((t, i) => `
+                    <div class="user-card">
+                        <div class="user-card-header">
+                            <span class="user-name" style="color:${TRACE_COLORS[i]}">${t.userName}</span>
+                            <span style="font-size:0.75rem; color:#64748b;">${t.pointCount} nokta</span>
+                        </div>
+                        <div class="user-stats">
+                            <div>Puan: <span class="stat-value" style="color:#fbbf24;">Bekleniyor...</span></div>
+                        </div>
+                    </div>`).join('');
+
+                panel.innerHTML = `
+                    <h2>Çizimler (${traceCount}/${maxTraces})</h2>
+                    ${usersHTML}
+                    <div class="waiting-message" style="margin-top:16px;">
+                        <div class="icon">⏳</div>
+                        <p>Puanlar ${maxTraces}. çizim tamamlandığında hesaplanacak.</p>
+                        <p style="font-size:0.75rem; margin-top:8px;">Eksik: ${maxTraces - traceCount} çizim daha</p>
+                    </div>`;
+                return;
+            }
+
+            // ── 3 çizim tamamlandı: tam analiz göster ──
+
+            // En iyi skoru bul
+            const bestScore = Math.max(...scores.map(s => s.score));
+            // Toplam ortalama sapma
+            const avgMAE = scores.reduce((sum, s) => sum + s.mae, 0) / scores.length;
+
+            // İstatistik kutuları
+            let statsHTML = `
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="value">${traceCount}</div>
+                        <div class="label">Toplam Çizim</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="value">${Math.round(avgMAE * 10) / 10}px</div>
+                        <div class="label">Ort. Sapma (MAE)</div>
+                    </div>
+                </div>`;
+
+            // Kullanıcı kartları — puana göre sırala
+            const sortedScores = [...scores].sort((a, b) => b.score - a.score);
+            let usersHTML = sortedScores.map((s, rank) => {
+                const isBest = s.score === bestScore;
+                const medal = rank === 0 ? '🥇' : rank === 1 ? '🥈' : '🥉';
+                const scoreColor = s.score >= 8 ? '#22c55e' : s.score >= 5 ? '#fbbf24' : '#ef4444';
+
+                return `
+                    <div class="user-card ${isBest ? 'winner' : ''}">
+                        <div class="user-card-header">
+                            <span class="user-name">
+                                ${isBest ? '<span class="crown">👑</span>' : ''}
+                                <span style="color:${s.color}">${medal} ${s.userName}</span>
+                            </span>
+                            <div style="text-align:right;">
+                                <div class="user-score" style="color:${scoreColor}">${s.score}</div>
+                                <div class="score-label">/ 10</div>
+                            </div>
+                        </div>
+                        <div class="user-stats">
+                            <div>Ort. Sapma (MAE): <span class="stat-value">${s.mae} px</span></div>
+                            <div>Maks. Sapma: <span class="stat-value">${s.maxDev} px</span></div>
+                            <div>Nokta Sayısı: <span class="stat-value">${s.pointCount}</span></div>
+                        </div>
+                    </div>`;
+            }).join('');
+
+            panel.innerHTML = `
+                <h2>Çapraz Doğrulama Analizi</h2>
+                ${statsHTML}
+                <h2 style="margin-top:8px;">Kullanıcı Puanları</h2>
+                ${usersHTML}`;
+        }
+    </script>
+</body>
+
+</html>
