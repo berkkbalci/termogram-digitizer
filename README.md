@@ -1,6 +1,6 @@
 # 🌡️ Termogram Dijitalleştirici
 
-Ankara Meteoroloji Laboratuvarı İklim İstasyonu'nun 1911–2005 yılları arasında kaydedilmiş tarihsel termogram verilerini, gönüllü kullanıcıların katılımıyla dijitalleştirmeyi amaçlayan bir citizen science (vatandaş bilimi) platformu.
+Kandilli Meteoroloji Laboratuvarı İklim İstasyonu'nun 1911–2005 yılları arasında kaydedilmiş tarihsel termogram verilerini, gönüllü kullanıcıların katılımıyla dijitalleştirmeyi amaçlayan bir citizen science (vatandaş bilimi) platformu.
 
 Bu proje, **Meteoroloji Hackathon 2026** kapsamında geliştirilmiştir.
 
