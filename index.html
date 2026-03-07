@@ -41,10 +41,6 @@
 </head>
 
 <body>
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <!-- Bu kodu index.html dosyanızda </head> ile </body> arasına yapıştırın -->
-    <!-- Yani mevcut <body> ... </body> kısmının İÇİNE koyun               -->
-    <!-- ═══════════════════════════════════════════════════════ -->
 
     <style>
         * {
@@ -179,6 +175,8 @@
             cursor: crosshair;
             max-width: 100%;
             height: auto;
+            touch-action: none;
+            /* Parmakla çizerken sayfanın kaymasını engeller */
         }
 
         /* ── Alt Bilgi Çubuğu ── */
@@ -206,6 +204,68 @@
             text-align: center;
             z-index: 1000;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        /* ── Mobil Uyumluluk ── */
+        @media (max-width: 768px) {
+            .login-box {
+                padding: 24px 16px;
+            }
+
+            .login-box h1 {
+                font-size: 1.4rem;
+            }
+
+            .login-box input {
+                width: 100%;
+                margin-right: 0;
+                margin-bottom: 12px;
+            }
+
+            .login-box button {
+                width: 100%;
+                padding: 12px;
+            }
+
+            .header {
+                padding: 10px 16px;
+            }
+
+            .header h1 {
+                font-size: 1rem;
+            }
+
+            .toolbar {
+                padding: 8px 12px;
+                gap: 6px;
+            }
+
+            .toolbar button {
+                padding: 6px 10px;
+                font-size: 0.75rem;
+            }
+
+            #statusText {
+                width: 100%;
+                margin-left: 0;
+                margin-top: 6px;
+                font-size: 0.75rem;
+            }
+
+            .info-bar {
+                padding: 8px 12px;
+                font-size: 0.7rem;
+            }
+
+            .canvas-container {
+                padding: 4px;
+            }
+
+            .success-popup {
+                padding: 20px 24px;
+                font-size: 1rem;
+                width: 85%;
+            }
         }
     </style>
 
@@ -250,10 +310,6 @@
         <span style="font-size:0.8rem; color:#a7f3d0;">Yeni termogram yükleniyor...</span>
     </div>
 
-    <!-- ══════════════════════════════════════════════════════════════ -->
-    <!-- UYGULAMA KODU — Canvas çizim + Firebase işlemleri            -->
-    <!-- ÖNEMLİ: Bu <script> bloğu type="module" DEĞİL (global scope) -->
-    <!-- ══════════════════════════════════════════════════════════════ -->
     <script>
 
         // ═══════════════════════════════════════
@@ -263,14 +319,14 @@
         const ctx = canvas.getContext('2d');
 
         let isDrawing = false;
-        let points = [];            // Toplanan piksel koordinatları [{x, y, t}, ...]
-        let currentImage = null;    // Yüklü Image nesnesi
-        let currentUser = null;     // { uid, displayName }
-        let currentTermogram = null; // Firestore'dan çekilen aktif termogram belgesi
+        let points = [];
+        let currentImage = null;
+        let currentUser = null;
+        let currentTermogram = null;
 
 
         // ═══════════════════════════════════════
-        // CANVAS ÇİZİM MOTORU (Kişi A'nın kodu)
+        // CANVAS ÇİZİM MOTORU
         // ═══════════════════════════════════════
 
         // Görseli canvas'a yükle
@@ -295,21 +351,21 @@
             });
         }
 
-        // ── Mouse olayları ──
-
-        canvas.addEventListener('mousedown', (e) => {
-            if (!currentImage) return; // Görsel yoksa çizme
+        // ── Çizim başlat (mouse veya touch) ──
+        function startDrawing(x, y) {
+            if (!currentImage) return;
             isDrawing = true;
-            const pt = getCanvasPoint(e);
-            points = [pt]; // Her yeni çizimde sıfırdan başla
+            const pt = canvasPointFromXY(x, y);
+            points = [pt];
             // Görseli yeniden çiz (önceki kırmızı çizgiyi temizle)
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(currentImage, 0, 0);
-        });
+        }
 
-        canvas.addEventListener('mousemove', (e) => {
+        // ── Çizim devam (mouse veya touch) ──
+        function continueDrawing(x, y) {
             if (!isDrawing) return;
-            const pt = getCanvasPoint(e);
+            const pt = canvasPointFromXY(x, y);
             points.push(pt);
 
             // Son iki nokta arasına kırmızı çizgi çiz
@@ -323,39 +379,63 @@
                 ctx.lineCap = 'round';
                 ctx.stroke();
             }
-
             updatePointCount();
-        });
+        }
 
-        canvas.addEventListener('mouseup', () => {
+        // ── Çizim bitir (mouse veya touch) ──
+        function stopDrawing() {
             isDrawing = false;
-            // En az 50 nokta varsa "Gönder" butonunu aktifleştir
             if (points.length >= 50) {
                 document.getElementById('submitBtn').disabled = false;
             }
-        });
+        }
 
-        // Mouse canvas'tan çıkarsa çizimi durdur
-        canvas.addEventListener('mouseleave', () => {
-            if (isDrawing) {
-                isDrawing = false;
-                if (points.length >= 50) {
-                    document.getElementById('submitBtn').disabled = false;
-                }
-            }
-        });
-
-        // Ekrandaki mouse pozisyonunu canvas'ın gerçek piksel koordinatına çevir
-        function getCanvasPoint(e) {
+        // Ekran koordinatını (clientX, clientY) canvas piksel koordinatına çevir
+        function canvasPointFromXY(clientX, clientY) {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
             return {
-                x: Math.round((e.clientX - rect.left) * scaleX),
-                y: Math.round((e.clientY - rect.top) * scaleY),
+                x: Math.round((clientX - rect.left) * scaleX),
+                y: Math.round((clientY - rect.top) * scaleY),
                 t: Date.now()
             };
         }
+
+        // ── Mouse olayları (masaüstü) ──
+        canvas.addEventListener('mousedown', (e) => {
+            startDrawing(e.clientX, e.clientY);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            continueDrawing(e.clientX, e.clientY);
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            stopDrawing();
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            if (isDrawing) stopDrawing();
+        });
+
+        // ── Touch olayları (mobil ve tablet) ──
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Sayfanın kaymasını engelle
+            const touch = e.touches[0];
+            startDrawing(touch.clientX, touch.clientY);
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            continueDrawing(touch.clientX, touch.clientY);
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            stopDrawing();
+        });
 
         // Canvas'ı sıfırla
         function resetCanvas() {
@@ -374,11 +454,10 @@
 
 
         // ═══════════════════════════════════════
-        // FİREBASE İŞLEMLERİ (Kişi B'nin kodu)
+        // FİREBASE İŞLEMLERİ
         // ═══════════════════════════════════════
 
         // Firebase'in yüklenmesini bekle
-        // (module script async yüklenir, hazır olana kadar beklemeliyiz)
         function waitForFirebase() {
             return new Promise((resolve) => {
                 const check = () => {
@@ -400,10 +479,8 @@
             document.getElementById('statusText').textContent = 'Giriş yapılıyor...';
 
             try {
-                // Firebase'in hazır olmasını bekle
                 await waitForFirebase();
 
-                // Anonim giriş yap
                 const { signInAnonymously } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js'
                 );
@@ -414,12 +491,10 @@
                     displayName: name
                 };
 
-                // Ekranları değiştir
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('appScreen').style.display = 'block';
                 document.getElementById('userInfo').textContent = 'Merhaba, ' + name;
 
-                // İlk termogramı getir
                 await getNewTermogram();
 
             } catch (err) {
@@ -442,7 +517,6 @@
             document.getElementById('submitBtn').disabled = true;
 
             try {
-                // 1) Henüz tamamlanmamış termogramları çek
                 const q = query(
                     collection(window.db, 'termograms'),
                     where('status', '==', 'available')
@@ -455,7 +529,6 @@
                     return;
                 }
 
-                // 2) Bu kullanıcının daha önce çizdiği termogramları bul
                 const tracesQ = query(
                     collection(window.db, 'traces'),
                     where('userId', '==', currentUser.uid)
@@ -465,7 +538,6 @@
                     tracesSnap.docs.map(d => d.data().termogramId)
                 );
 
-                // 3) Kullanıcının henüz çizmediği termogramları filtrele
                 const available = snapshot.docs.filter(d => !alreadyTraced.has(d.id));
 
                 if (available.length === 0) {
@@ -474,20 +546,17 @@
                     return;
                 }
 
-                // 4) Rastgele birini seç
                 const randomDoc = available[Math.floor(Math.random() * available.length)];
                 currentTermogram = { id: randomDoc.id, ...randomDoc.data() };
 
-                // 5) Görseli yükle
                 await loadTermogram(currentTermogram.imageFile);
 
-                // UI güncelle
                 document.getElementById('termogramLabel').textContent =
                     currentTermogram.label || currentTermogram.id;
                 document.getElementById('traceProgress').textContent =
                     'Çizim: ' + currentTermogram.traceCount + '/' + currentTermogram.maxTraces;
                 document.getElementById('statusText').textContent =
-                    '← Mavi çizgiyi mouse ile soldan sağa takip edin';
+                    'Mavi çizgiyi parmağınızla veya mouse ile takip edin';
 
             } catch (err) {
                 console.error('Termogram getirme hatası:', err);
@@ -510,17 +579,13 @@
             try {
                 const cal = currentTermogram;
 
-                // 1) Piksel koordinatlarını sıcaklık/zaman değerine dönüştür
                 const calibratedData = points.map(p => {
-                    // X oranı: pikselin yatay konumu (zaman)
                     const ratioX = (p.x - cal.gridLeft) / (cal.gridRight - cal.gridLeft);
-                    // Y oranı: pikselin dikey konumu (sıcaklık)
                     const ratioY = (p.y - cal.gridTop) / (cal.gridBottom - cal.gridTop);
 
                     const startMs = new Date(cal.startDate).getTime();
                     const endMs = new Date(cal.endDate).getTime();
                     const timestamp = new Date(startMs + ratioX * (endMs - startMs));
-                    // Y ekseni ters: yukarı = yüksek sıcaklık
                     const temperature = cal.tempMax - ratioY * (cal.tempMax - cal.tempMin);
 
                     return {
@@ -529,7 +594,6 @@
                     };
                 });
 
-                // 2) Çizimi traces koleksiyonuna kaydet
                 await addDoc(collection(window.db, 'traces'), {
                     termogramId: currentTermogram.id,
                     userId: currentUser.uid,
@@ -540,7 +604,6 @@
                     createdAt: serverTimestamp()
                 });
 
-                // 3) Termogramın çizim sayacını artır
                 const termRef = doc(window.db, 'termograms', currentTermogram.id);
                 const newCount = currentTermogram.traceCount + 1;
 
@@ -550,7 +613,6 @@
                 }
                 await updateDoc(termRef, updateData);
 
-                // 4) Başarı mesajı göster
                 const popup = document.getElementById('successPopup');
                 popup.style.display = 'block';
                 setTimeout(() => {
