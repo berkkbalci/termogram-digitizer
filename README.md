@@ -2,11 +2,11 @@
 
 Kandilli Meteoroloji Laboratuvarı İklim İstasyonu'nun 1911–2005 yılları arasında kaydedilmiş tarihsel termogram verilerini, gönüllü kullanıcıların katılımıyla dijitalleştirmeyi amaçlayan bir citizen science (vatandaş bilimi) platformu.
 
-Bu proje, **Meteoroloji Hackathon 2026** kapsamında geliştirilmiştir.
+Bu proje, **Boğaziçi Meteoroloji Hackathonu'nda**  geliştirilmiştir.
 
 ## Proje Hakkında
 
-Termogramlar, sıcaklık değişimlerini sürekli olarak kâğıt üzerine kaydeden analog cihazların ürettiği grafiklerdir. Yaklaşık 100 yıllık bu arşiv, iklim araştırmaları için son derece değerli bir veri kaynağıdır. Ancak bu veriler şu anda yalnızca fotoğraf formatında mevcut olup, bilgisayar ortamında analiz edilebilecek sayısal bir formata henüz dönüştürülmemiştir.
+Termogramlar, sıcaklık değişimlerini sürekli olarak kâğıt üzerine kaydeden analog cihazların ürettiği grafiklerdir. Yaklaşık 100 yıllık bu arşiv, iklim araştırmaları için son derece değerli bir veri kaynağıdır.
 
 Bu platform, termogram görsellerindeki sıcaklık eğrilerini dijitalleştirmek için oyunlaştırma (gamification) yaklaşımını kullanır. Kullanıcılar, ekranlarında gördükleri termogram üzerindeki mavi sıcaklık çizgisini mouse ile takip eder. Bu takip sırasında toplanan piksel koordinatları, kalibrasyon verileri kullanılarak gerçek sıcaklık (°C) ve zaman (tarih/saat) değerlerine dönüştürülür ve veritabanına kaydedilir.
 
@@ -64,7 +64,7 @@ Projeyi yerel ortamda çalıştırmak için yalnızca bir web tarayıcısı ve b
 Repoyu klonladıktan sonra proje klasöründe bir yerel sunucu başlatmanız yeterlidir. Dosyayı doğrudan `file:///` protokolü ile açmak, Firebase SDK'sının ve görsellerin düzgün çalışmamasına neden olabilir.
 
 ```bash
-git clone https://github.com/KULLANICI_ADI/termogram-digitizer.git
+git clone https://github.com/berkkbalci/termogram-digitizer.git
 cd termogram-digitizer
 python3 -m http.server 8000
 ```
@@ -94,8 +94,4 @@ Kalibre edilmiş veriler şu formatta kaydedilir:
 
 ## Katkıda Bulunanlar
 
-Bu proje Meteoroloji Hackathon 2026 kapsamında geliştirilmiştir.
-
-## Lisans
-
-Bu proje MIT Lisansı ile lisanslanmıştır.
+Bu proje Meteoroloji Hackathon 2026 kapsamında **Berk Balcı ve Burak Ceylan tarafından Birkan Yılmaz hocamızın katkılarıyla** geliştirilmiştir.
