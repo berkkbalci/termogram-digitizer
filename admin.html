@@ -877,12 +877,22 @@
                 const traces = allTraces.filter(t => t.termogramId === termogram.id);
                 if (traces.length < 2) continue;
 
-                // Compute MAE for all traces first
+                // Compute initial median curve with all traces
                 const allRawPoints = traces.map(t => t.rawPoints || []);
                 let averagePoints = computeAverageCurve(allRawPoints);
                 if (averagePoints.length === 0) continue;
 
-                // Trimmed mean: if 5+ traces, exclude best and worst by MAE, recompute average from remaining 3
+                // Step 1: Outlier detection — recompute average without statistical outliers
+                if (traces.length >= 3) {
+                    const outlierFlags = detectOutliers(allRawPoints, averagePoints);
+                    const inlierPoints = allRawPoints.filter((_, i) => !outlierFlags[i]);
+                    if (inlierPoints.length >= 2) {
+                        const inlierAvg = computeAverageCurve(inlierPoints);
+                        if (inlierAvg.length > 0) averagePoints = inlierAvg;
+                    }
+                }
+
+                // Step 2: Trimmed mean — if 5+ traces, exclude best and worst by MAE
                 if (traces.length >= 5) {
                     const traceMAEs = traces.map((trace, i) => ({
                         index: i,
@@ -974,14 +984,18 @@
 
         function computeAverageCurve(allRawPoints) {
             const sorted = allRawPoints.map(pts => [...pts].sort((a, b) => a.x - b.x));
-            const allMinX = Math.max(...sorted.map(pts => pts[0]?.x ?? 0));
-            const allMaxX = Math.min(...sorted.map(pts => pts[pts.length - 1]?.x ?? 0));
+            // Use UNION of all trace x-ranges (not intersection) so a single short trace
+            // doesn't clip the average curve. Require at least half the traces to have
+            // data at each x position before including that point.
+            const allMinX = Math.min(...sorted.map(pts => pts[0]?.x ?? Infinity));
+            const allMaxX = Math.max(...sorted.map(pts => pts[pts.length - 1]?.x ?? 0));
             if (allMaxX <= allMinX) return [];
+            const minRequired = Math.max(1, Math.ceil(sorted.length / 2));
             const step = 5, avg = [];
             for (let x = allMinX; x <= allMaxX; x += step) {
                 const yValues = [];
                 for (const pts of sorted) { const y = interpolateY(pts, x); if (y !== null) yValues.push(y); }
-                if (yValues.length > 0) avg.push({ x, y: Math.round(median(yValues)) });
+                if (yValues.length >= minRequired) avg.push({ x, y: Math.round(median(yValues)) });
             }
             return avg;
         }
