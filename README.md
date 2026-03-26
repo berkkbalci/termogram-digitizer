@@ -181,4 +181,4 @@ python3 scripts/tif_to_png.py
 Bu proje **Boğaziçi Meteoroloji Hackathonu 2026** kapsamında geliştirilmiştir.
 
 **Geliştirme:** Berk Balcı, Burak Ceylan
-**Danışman:** Birkan Yılmaz
+**Danışman:** Birkan Yılmaz, Şenol Solum
