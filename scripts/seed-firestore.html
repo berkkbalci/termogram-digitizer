@@ -145,8 +145,9 @@
         ⚠️ "Temizle ve Yeniden Yükle" tüm mevcut verileri (fotoğraflar + çizimler) silip
         sadece aşağıdaki 4 temel fotoğrafı yükler.
     </div>
-    <button class="btn-blue" onclick="seedOnly()">📥 Temel 4 Fotoğrafı Yükle (ekleme mod)</button>
-    <button class="btn-red"  onclick="cleanAndSeed()">🔄 Temizle ve Temel 4'ü Yükle</button>
+    <button class="btn-blue"  onclick="seedOnly()">📥 Temel 4 Fotoğrafı Yükle (ekleme mod)</button>
+    <button class="btn-red"   onclick="cleanAndSeed()">🔄 Temizle ve Temel 4'ü Yükle</button>
+    <button class="btn-green" onclick="updateGridOnly()">📐 Sadece Grid Değerlerini Güncelle (çizimler korunur)</button>
 
     <h3>📄 Log</h3>
     <pre id="log">Hazır.</pre>
@@ -156,7 +157,7 @@
 
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-        import { getFirestore, doc, setDoc, collection, getDocs, deleteDoc }
+        import { getFirestore, doc, setDoc, updateDoc, collection, getDocs, deleteDoc }
             from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
         import { getAuth, signInAnonymously }
             from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
@@ -185,8 +186,10 @@
                 desc: 'Y: -10°C (alt) → 40°C (üst) | 7 günlük şerit'
             },
             barograf: {
-                gridLeft: 100, gridRight: 5000, gridTop: 60, gridBottom: 1950,
+                gridLeft: 100, gridRight: 5000, gridTop: 145, gridBottom: 1935,
                 tempMin: 950, tempMax: 1050,
+                // Kalibrasyon: y=1040 → 1000 mbar (görsel etiket analizi ile)
+                // Ölçek: 17.9 px/mbar, major çizgiler 357px = 20 mbar aralıkla
                 desc: 'Y: 950 hPa (alt) → 1050 hPa (üst) | Chart 21a mb | 25 saatlik şerit'
             },
             aktinograf: {
@@ -427,6 +430,36 @@
                 await deleteCollection('termograms');
                 log('\n📥 Temel fotoğraflar yükleniyor...\n\n');
                 await uploadList(TERMOGRAMS);
+                listPhotos();
+            } catch (err) {
+                log(`\n❌ Hata: ${err.message}\n`);
+            }
+        };
+
+        // Sadece grid değerlerini güncelle — trace verileri korunur
+        window.updateGridOnly = async function () {
+            if (!confirm('Tüm termogramların grid değerleri GRID_PRESETS ile güncellenecek.\nÇizim verileri korunacak. Devam?')) return;
+            document.getElementById('log').textContent = '📐 Grid değerleri güncelleniyor...\n\n';
+            try {
+                // collection, getDocs, doc, updateDoc modül scope'ta mevcut
+                const snap = await getDocs(collection(db, 'termograms'));
+                let updated = 0;
+                for (const docSnap of snap.docs) {
+                    const data = docSnap.data();
+                    const preset = GRID_PRESETS[data.dataType];
+                    if (!preset) { log(`  ⚠️ ${docSnap.id}: bilinmeyen tür, atlandı\n`); continue; }
+                    await updateDoc(doc(db, 'termograms', docSnap.id), {
+                        gridLeft:  preset.gridLeft,
+                        gridRight: preset.gridRight,
+                        gridTop:   preset.gridTop,
+                        gridBottom:preset.gridBottom,
+                        tempMin:   preset.tempMin,
+                        tempMax:   preset.tempMax
+                    });
+                    log(`  ✓ ${docSnap.id} grid güncellendi\n`);
+                    updated++;
+                }
+                log(`\n✅ ${updated} termogram grid değerleri güncellendi. Çizimler korundu.\n`);
                 listPhotos();
             } catch (err) {
                 log(`\n❌ Hata: ${err.message}\n`);
