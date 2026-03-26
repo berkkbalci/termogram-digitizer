@@ -618,7 +618,7 @@
         // y_piksel → sıcaklık dönüşümü için: temp = a * y_piksel + b
         // Her veri türü için birim etiketi
         function getValueUnit(dataType) {
-            const units = { termogram: '°C', barograf: 'mbar', aktinograf: 'W/m²', nem: '%' };
+            const units = { termogram: '°C', barograf: 'mbar', aktinograf: 'cal/cm²·min', nem: '%' };
             return units[dataType] || '';
         }
 

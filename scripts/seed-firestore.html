@@ -193,9 +193,12 @@
                 desc: 'Y: 950 hPa (alt) → 1050 hPa (üst) | Chart 21a mb | 25 saatlik şerit'
             },
             aktinograf: {
-                gridLeft: 115, gridRight: 3551, gridTop: 40, gridBottom: 960,
-                tempMin: 0, tempMax: 1400,
-                desc: 'Y: 0 W/m² (alt) → 1400 W/m² (üst) | ≈2.0 cal/cm²·min | 25 saatlik şerit'
+                gridLeft: 115, gridRight: 3551, gridTop: 130, gridBottom: 901,
+                tempMin: 0, tempMax: 2.0,
+                // Piksel analizi (3567×1077 görsel):
+                // Major yatay çizgiler: y=130,324,517,709,901 → 193px = 0.5 cal/cm²·min
+                // Üst (y=130) = 2.0 cal/cm²·min, Alt (y=901) = 0.0 cal/cm²·min
+                desc: 'Y: 0 cal/cm²·min (alt=901) → 2.0 cal/cm²·min (üst=130) | 25 saatlik şerit'
             },
             nem: {
                 gridLeft: 76, gridRight: 3485, gridTop: 55, gridBottom: 1082,
