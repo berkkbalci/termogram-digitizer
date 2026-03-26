@@ -1506,7 +1506,7 @@
                     }
                     const r2 = ssTot > 0 ? (1 - ssRes / ssTot) : 1;
 
-                    if (isFinite(slope) && isFinite(intercept) && r2 >= 0.55) {
+                    if (isFinite(slope) && isFinite(intercept) && r2 >= 0.75) {
                         model.method = 'reference_regression';
                         model.slope = slope;
                         model.intercept = intercept;
@@ -1565,7 +1565,7 @@
             const hasCoverage = (quality.coverageRatio || 0) >= 0.45;
             const hasDensity = (quality.pointDensity || 0) >= 0.03;
             const goodRefRegression = calibration.method === 'reference_regression'
-                && (quality.calibrationR2 ?? 0) >= 0.55
+                && (quality.calibrationR2 ?? 0) >= 0.75
                 && (quality.usedReferenceCount || 0) >= 2;
             const acceptableFallback = calibration.method === 'grid_linear'
                 && (quality.referenceCount || 0) >= 2

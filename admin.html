@@ -828,9 +828,21 @@
                     currentAveragePoints = smoothCurve(initialAvg);
                 }
 
+                // Leave-one-out puanlama: her kişi kendi çizimi hariç ortalamaya göre puanlanır
+                const inlierIndices = allRaw.map((_, k) => k).filter(k => !outlierFlags[k]);
+                const gridHeight = (termogram.gridBottom - termogram.gridTop) || Math.round(canvas.height * 0.8);
+                const maxAcceptable = gridHeight * 0.08;
                 currentScores = currentTraceData.map((trace, i) => {
-                    const { mae, maxDev } = computeDeviation(trace.rawPoints, currentAveragePoints);
-                    const maxAcceptable = canvas.height * 0.15;
+                    let refAvg;
+                    if (outlierFlags[i] || inlierIndices.length < 3) {
+                        refAvg = currentAveragePoints;
+                    } else {
+                        const othersRaw = inlierIndices.filter(k => k !== i).map(k => allRaw[k]);
+                        refAvg = othersRaw.length >= 2
+                            ? smoothCurve(computeAverageCurve(othersRaw))
+                            : currentAveragePoints;
+                    }
+                    const { mae, maxDev } = computeDeviation(trace.rawPoints, refAvg);
                     const score = Math.max(0, Math.min(10, 10 * (1 - mae / maxAcceptable)));
                     return { userName: trace.userName, userId: trace.userId, pointCount: trace.pointCount, mae, maxDev, score: Math.round(score * 10) / 10, color: TRACE_COLORS[i % TRACE_COLORS.length], isOutlier: outlierFlags[i] };
                 });
@@ -925,9 +937,20 @@
                 averagePoints = smoothCurve(averagePoints);
 
                 const estimatedHeight = (termogram.gridBottom - termogram.gridTop) || 950;
-                const maxAcceptable = estimatedHeight * 0.15;
-                traces.forEach(trace => {
-                    const { mae } = computeDeviation(trace.rawPoints || [], averagePoints);
+                const maxAcceptable = estimatedHeight * 0.08;
+                // Leave-one-out: her kişi kendi çizimi hariç ortalamaya göre puanlanır
+                const lb_inlierFlags = detectOutliersIQR(workingRaw, averagePoints);
+                const lb_inlierIndices = workingRaw.map((_, k) => k).filter(k => !lb_inlierFlags[k]);
+                traces.forEach((trace, traceIdx) => {
+                    const traceRaw = trace.rawPoints || [];
+                    // workingRaw içindeki karşılık gelen indeksi bul
+                    const workIdx = workingRaw.indexOf(traceRaw);
+                    let refAvg = averagePoints;
+                    if (workIdx !== -1 && !lb_inlierFlags[workIdx] && lb_inlierIndices.length >= 3) {
+                        const othersRaw = lb_inlierIndices.filter(k => k !== workIdx).map(k => workingRaw[k]);
+                        if (othersRaw.length >= 2) refAvg = smoothCurve(computeAverageCurve(othersRaw));
+                    }
+                    const { mae } = computeDeviation(traceRaw, refAvg);
                     const score = Math.max(0, Math.min(10, 10 * (1 - mae / maxAcceptable)));
                     const userId = trace.userId;
                     if (!userScores[userId]) userScores[userId] = { userName: trace.userName || 'Anonim', scores: [] };
