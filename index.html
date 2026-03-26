@@ -812,31 +812,55 @@
         // CANVAS ÇİZİM MOTORU
         // ═══════════════════════════════════════
 
-        function loadTermogram(imageSrc) {
+        function normalizeImagePathCandidates(imageSrc) {
+            const set = new Set([imageSrc]);
+            // Handle Unicode filename normalization differences across OS/hosts.
+            set.add(imageSrc.normalize('NFC'));
+            set.add(imageSrc.normalize('NFD'));
+            return [...set].filter(Boolean);
+        }
+
+        function loadImageOnce(src) {
             return new Promise((resolve, reject) => {
                 const img = new Image();
-                img.onload = () => {
-                    currentImage = img;
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    overlayCanvas.width = img.width;
-                    overlayCanvas.height = img.height;
-                    ctx.drawImage(img, 0, 0);
-                    points = [];
-                    refPoints = [];
-                    currentMode = 'draw';
-                    updatePointCount();
-                    updateRefPointsUI();
-                    updateStepIndicator();
-                    document.getElementById('submitBtn').disabled = true;
-                    document.getElementById('refModeBtn').disabled = true;
-                    document.getElementById('refModeBtn').classList.remove('active-mode');
-                    document.querySelector('.toolbar').classList.remove('ref-mode-active');
-                    resolve();
-                };
-                img.onerror = () => reject(new Error('Görsel yüklenemedi'));
-                img.src = imageSrc;
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error(`Görsel yüklenemedi: ${src}`));
+                img.src = src;
             });
+        }
+
+        async function loadTermogram(imageSrc) {
+            const candidates = normalizeImagePathCandidates(imageSrc);
+            let loadedImage = null;
+            let lastError = null;
+
+            for (const src of candidates) {
+                try {
+                    loadedImage = await loadImageOnce(src);
+                    break;
+                } catch (err) {
+                    lastError = err;
+                }
+            }
+
+            if (!loadedImage) throw lastError || new Error('Görsel yüklenemedi');
+
+            currentImage = loadedImage;
+            canvas.width = loadedImage.width;
+            canvas.height = loadedImage.height;
+            overlayCanvas.width = loadedImage.width;
+            overlayCanvas.height = loadedImage.height;
+            ctx.drawImage(loadedImage, 0, 0);
+            points = [];
+            refPoints = [];
+            currentMode = 'draw';
+            updatePointCount();
+            updateRefPointsUI();
+            updateStepIndicator();
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('refModeBtn').disabled = true;
+            document.getElementById('refModeBtn').classList.remove('active-mode');
+            document.querySelector('.toolbar').classList.remove('ref-mode-active');
         }
 
         // ── Ortak çizim fonksiyonları ──
