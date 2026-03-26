@@ -515,6 +515,7 @@
         let allTermograms = [], allTraces = [];
         const TRACE_COLORS = ['#f97316', '#22d3ee', '#a78bfa'];
         const AVERAGE_COLOR = '#22c55e';
+        const SCORE_UNLOCK_AT = 5;  // Kaç çizimden sonra puanlama aktif olsun
 
         // ── Analiz sırasında kullanılan global veriler (tooltip için) ──
         let currentAnalysisImage = null;   // Canvas'taki termogram görseli
@@ -731,7 +732,7 @@
                 for (const t of sorted) {
                     const opt = document.createElement('option');
                     opt.value = t.id;
-                    const icon = t.traceCount >= t.maxTraces ? '✅' : `⏳ ${t.traceCount}/${t.maxTraces}`;
+                    const icon = t.traceCount >= t.maxTraces ? '✅' : t.traceCount >= SCORE_UNLOCK_AT ? `🔓 ${t.traceCount}/${t.maxTraces}` : `⏳ ${t.traceCount}/${t.maxTraces}`;
                     opt.textContent = `${icon}  ${t.label || t.id}`;
                     group.appendChild(opt);
                 }
@@ -876,7 +877,7 @@
 
         function buildLeaderboard() {
             const container = document.getElementById('leaderboardContent');
-            const completedTermograms = allTermograms.filter(t => t.traceCount >= (t.maxTraces || 3));
+            const completedTermograms = allTermograms.filter(t => t.traceCount >= SCORE_UNLOCK_AT);
             if (completedTermograms.length === 0) {
                 container.innerHTML = `<div class="empty-state" style="padding:60px;"><div class="icon">⏳</div><p>Henüz hiçbir termogram yeterli çizime ulaşmadı.</p></div>`;
                 return;
@@ -1202,7 +1203,7 @@
 
         function buildAnalysisPanel(termogram, traceData, scores, refCal) {
             const panel = document.getElementById('analysisPanel');
-            const tc = traceData.length, mt = termogram.maxTraces || 3;
+            const tc = traceData.length, mt = SCORE_UNLOCK_AT;
 
             if (tc < mt) {
                 let uh = traceData.map((t, i) => `<div class="user-card"><div class="user-card-header">
