@@ -1664,8 +1664,15 @@
                     return;
                 }
 
-                const randomDoc = available[Math.floor(Math.random() * available.length)];
-                currentTermogram = { id: randomDoc.id, ...randomDoc.data() };
+                // Demo sırası: termogram → nem → barograf → aktinograf
+                const DEMO_ORDER = ['termogram', 'nem', 'barograf', 'aktinograf'];
+                available.sort((a, b) => {
+                    const ai = DEMO_ORDER.indexOf(a.data().dataType);
+                    const bi = DEMO_ORDER.indexOf(b.data().dataType);
+                    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+                });
+                const nextDoc = available[0];
+                currentTermogram = { id: nextDoc.id, ...nextDoc.data() };
 
                 await loadTermogram(currentTermogram.imageFile);
                 updateReferenceUITexts();
