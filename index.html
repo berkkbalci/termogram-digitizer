@@ -692,8 +692,8 @@
     <!-- ══════════ SICAKLIK GİRİŞ POPUP ══════════ -->
     <div class="overlay" id="overlay"></div>
     <div class="temp-popup" id="tempPopup">
-        <h3>🌡️ Sıcaklık Değeri Girin</h3>
-        <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:12px;">Görselde gördüğünüz derece (°C)</p>
+        <h3 id="tempPopupTitle">🌡️ Sıcaklık Değeri Girin</h3>
+        <p id="tempPopupDesc" style="font-size:0.8rem; color:#94a3b8; margin-bottom:12px;">Görselde gördüğünüz değer (°C)</p>
         <input type="number" id="tempInput" placeholder="ör: 25" step="0.1">
         <div class="btn-row">
             <button class="btn-ok" onclick="confirmRefPoint()">Kaydet</button>
@@ -763,6 +763,29 @@
             aktinograf: '☀️ Aktinograf',
             nem: '💧 Nem'
         };
+        const DATA_TYPE_META = {
+            termogram: { icon: '🌡️', valueName: 'Sıcaklık', unit: '°C', placeholder: 'ör: 25' },
+            barograf: { icon: '📊', valueName: 'Basınç', unit: 'hPa', placeholder: 'ör: 1005' },
+            aktinograf: { icon: '☀️', valueName: 'Işınım', unit: 'W/m²', placeholder: 'ör: 450' },
+            nem: { icon: '💧', valueName: 'Nem', unit: '%', placeholder: 'ör: 72' }
+        };
+
+        function getDataTypeMeta() {
+            const type = currentTermogram?.dataType || 'termogram';
+            return DATA_TYPE_META[type] || DATA_TYPE_META.termogram;
+        }
+
+        function formatValueWithUnit(value) {
+            const meta = getDataTypeMeta();
+            return `${Number(value).toFixed(1)} ${meta.unit}`;
+        }
+
+        function updateReferenceUITexts() {
+            const meta = getDataTypeMeta();
+            document.getElementById('tempPopupTitle').textContent = `${meta.icon} ${meta.valueName} Değeri Girin`;
+            document.getElementById('tempPopupDesc').textContent = `Görselde gördüğünüz değer (${meta.unit})`;
+            document.getElementById('tempInput').placeholder = meta.placeholder;
+        }
 
         // ── XP & Level sistemi ──
         const LEVEL_THRESHOLDS = [0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 5000];
@@ -979,7 +1002,7 @@
             oc.fillStyle = '#FF0000';
             oc.fill();
 
-            // Temperature tooltip
+            // Value tooltip (data type specific unit)
             if (currentTermogram) {
                 const t = currentTermogram;
                 const gridTop = t.gridTop || 0;
@@ -988,7 +1011,7 @@
                 const tempMax = t.tempMax ?? 40;
                 const ratioY = (pt.y - gridTop) / (gridBottom - gridTop);
                 const temp = tempMax - ratioY * (tempMax - tempMin);
-                const tempStr = temp.toFixed(1) + '°C';
+                const tempStr = formatValueWithUnit(temp);
 
                 oc.font = 'bold 14px monospace';
                 const textWidth = oc.measureText(tempStr).width;
@@ -1061,12 +1084,13 @@
         // "Referans Noktası Ekle" butonuna basıldığında
         function enterRefMode() {
             if (points.length < 50) return;
+            const meta = getDataTypeMeta();
             currentMode = 'ref';
             canvas.style.cursor = 'crosshair';
             document.getElementById('refModeBtn').classList.add('active-mode');
             document.querySelector('.toolbar').classList.add('ref-mode-active');
             document.getElementById('statusText').textContent =
-                '📌 Görselde sıcaklık değeri gördüğünüz bir noktaya tıklayın';
+                `📌 Görselde ${meta.valueName.toLowerCase()} değeri gördüğünüz bir noktaya tıklayın`;
             updateStepIndicator();
         }
 
@@ -1083,6 +1107,7 @@
                 return;
             }
             pendingRefClick = { x: snapped.x, y: snapped.y };
+            updateReferenceUITexts();
             // Popup'ı aç
             document.getElementById('overlay').style.display = 'block';
             document.getElementById('tempPopup').style.display = 'block';
@@ -1092,8 +1117,9 @@
 
         // Popup'ta "Kaydet" basıldığında
         function confirmRefPoint() {
+            const meta = getDataTypeMeta();
             const tempStr = document.getElementById('tempInput').value.trim();
-            if (!tempStr) { alert('Lütfen bir sıcaklık değeri girin'); return; }
+            if (!tempStr) { alert(`Lütfen bir ${meta.valueName.toLowerCase()} değeri girin`); return; }
             const temp = parseFloat(tempStr);
             if (isNaN(temp)) { alert('Geçerli bir sayı girin'); return; }
 
@@ -1119,7 +1145,7 @@
                     '✅ Hazır! Gönder butonuna basabilirsiniz. İsterseniz daha fazla nokta ekleyin.';
             } else {
                 document.getElementById('statusText').textContent =
-                    '📌 En az 1 nokta daha ekleyin (toplam minimum 2). Görseldeki başka bir sıcaklık noktasına tıklayın.';
+                    `📌 En az 1 nokta daha ekleyin (toplam minimum 2). Görseldeki başka bir ${meta.valueName.toLowerCase()} noktasına tıklayın.`;
             }
         }
 
@@ -1175,8 +1201,8 @@
                 ctx.lineWidth = 3;
                 ctx.stroke();
 
-                // Sıcaklık etiketi
-                const label = ref.temperature + '°C';
+                // Data type specific label
+                const label = `${ref.temperature}${getDataTypeMeta().unit}`;
                 ctx.font = 'bold 18px system-ui';
                 ctx.fillStyle = '#fbbf24';
                 ctx.strokeStyle = '#000000';
@@ -1203,7 +1229,7 @@
             list.innerHTML = refPoints.map((ref, i) =>
                 `<span class="ref-tag">
                     <span class="dot"></span>
-                    ${ref.temperature}°C
+                    ${ref.temperature}${getDataTypeMeta().unit}
                     <span class="remove" onclick="removeRefPoint(${i})">×</span>
                 </span>`
             ).join('');
@@ -1499,6 +1525,7 @@
                 currentTermogram = { id: randomDoc.id, ...randomDoc.data() };
 
                 await loadTermogram(currentTermogram.imageFile);
+                updateReferenceUITexts();
 
                 document.getElementById('termogramLabel').textContent = currentTermogram.label || currentTermogram.id;
                 document.getElementById('dataTypeLabel').textContent = DATA_TYPE_ICONS[currentTermogram.dataType] || '';
