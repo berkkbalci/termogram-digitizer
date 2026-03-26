@@ -1693,15 +1693,15 @@
 
             try {
                 await waitForFirebase();
-                const { signInAnonymously, signOut } = await import(
+                const { signInAnonymously } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js'
                 );
-                // Her "Başla" tıklaması yeni bir oturum açar.
-                // Böylece aynı cihazdan farklı kişiler birbirinin tamamladığı
-                // çizimleri görmez.
-                if (window.auth.currentUser) await signOut(window.auth);
-                const result = await signInAnonymously(window.auth);
-                currentUser = { uid: result.user.uid, displayName: name };
+                // Firebase Auth oturumunu koru (signOut permissions hatasına yol açıyor).
+                // Her "Başla" tıklamasında yeni bir session ID üret —
+                // böylece aynı cihazdan farklı kişiler birbirinden bağımsız kullanıcı olur.
+                if (!window.auth.currentUser) await signInAnonymously(window.auth);
+                const sessionId = crypto.randomUUID();
+                currentUser = { uid: sessionId, displayName: name };
 
                 // Create or load user document
                 const { doc, getDoc, setDoc } = window.fbImports;
