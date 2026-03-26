@@ -140,3 +140,6 @@ vite.config.ts.timestamp-*
 
 
 scripts/seed-firestore.html
+
+.DS_Store
+**/.DS_Store
