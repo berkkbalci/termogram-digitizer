@@ -689,11 +689,11 @@
         </div>
     </div>
 
-    <!-- ══════════ SICAKLIK GİRİŞ POPUP ══════════ -->
+    <!-- ══════════ DEĞER GİRİŞ POPUP ══════════ -->
     <div class="overlay" id="overlay"></div>
     <div class="temp-popup" id="tempPopup">
-        <h3 id="tempPopupTitle">🌡️ Sıcaklık Değeri Girin</h3>
-        <p id="tempPopupDesc" style="font-size:0.8rem; color:#94a3b8; margin-bottom:12px;">Görselde gördüğünüz değer (°C)</p>
+        <h3 id="tempPopupTitle">Değer Girin</h3>
+        <p id="tempPopupDesc" style="font-size:0.8rem; color:#94a3b8; margin-bottom:12px;">Görselde gördüğünüz değeri girin</p>
         <input type="number" id="tempInput" placeholder="ör: 25" step="0.1">
         <div class="btn-row">
             <button class="btn-ok" onclick="confirmRefPoint()">Kaydet</button>
@@ -718,7 +718,7 @@
             <div id="tutorialStep2" class="tutorial-step" style="display:none;">
                 <div class="tutorial-icon">📌</div>
                 <h3>Referans Noktaları Ekleyin</h3>
-                <p>Çizimi bitirdikten sonra, görselde sıcaklık değeri görebildiğiniz noktalara tıklayarak referans noktaları ekleyin. En az 2 nokta gerekli.</p>
+                <p id="tutorialStep2Text">Çizimi bitirdikten sonra, görselde değer görebildiğiniz noktalara tıklayarak referans noktaları ekleyin. En az 2 nokta gerekli.</p>
             </div>
             <div id="tutorialStep3" class="tutorial-step" style="display:none;">
                 <div class="tutorial-icon">✅</div>
@@ -785,6 +785,10 @@
             document.getElementById('tempPopupTitle').textContent = `${meta.icon} ${meta.valueName} Değeri Girin`;
             document.getElementById('tempPopupDesc').textContent = `Görselde gördüğünüz değer (${meta.unit})`;
             document.getElementById('tempInput').placeholder = meta.placeholder;
+            const t2 = document.getElementById('tutorialStep2Text');
+            if (t2) {
+                t2.textContent = `Çizimi bitirdikten sonra, görselde ${meta.valueName.toLowerCase()} değeri görebildiğiniz noktalara tıklayarak referans noktaları ekleyin. En az 2 nokta gerekli.`;
+            }
         }
 
         // ── XP & Level sistemi ──
