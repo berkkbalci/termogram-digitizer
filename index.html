@@ -921,10 +921,31 @@
             };
         }
 
+        function getNearestDrawnPoint(targetPoint) {
+            if (!points || points.length === 0) return null;
+            let nearest = points[0];
+            let minDistSq = Infinity;
+            for (const p of points) {
+                const dx = p.x - targetPoint.x;
+                const dy = p.y - targetPoint.y;
+                const d2 = dx * dx + dy * dy;
+                if (d2 < minDistSq) {
+                    minDistSq = d2;
+                    nearest = p;
+                }
+            }
+            return { x: nearest.x, y: nearest.y, distance: Math.sqrt(minDistSq) };
+        }
+
         // ── Crosshair overlay ──
         function drawCrosshair(clientX, clientY) {
             if (!currentImage) return;
-            const pt = canvasPointFromXY(clientX, clientY);
+            const rawPt = canvasPointFromXY(clientX, clientY);
+            let pt = rawPt;
+            if (currentMode === 'ref' && points.length > 0) {
+                const snapped = getNearestDrawnPoint(rawPt);
+                if (snapped) pt = { x: snapped.x, y: snapped.y };
+            }
             const oc = overlayCtx;
             const w = overlayCanvas.width, h = overlayCanvas.height;
             oc.clearRect(0, 0, w, h);
@@ -1051,8 +1072,17 @@
 
         // Canvas'a tıklandığında (ref modunda)
         function handleRefClick(clientX, clientY) {
+            if (points.length < 2) {
+                alert('Önce çizimi tamamlayın, sonra referans noktası ekleyin.');
+                return;
+            }
             const pt = canvasPointFromXY(clientX, clientY);
-            pendingRefClick = pt;
+            const snapped = getNearestDrawnPoint(pt);
+            if (!snapped) {
+                alert('Çizgi bulunamadı. Lütfen tekrar deneyin.');
+                return;
+            }
+            pendingRefClick = { x: snapped.x, y: snapped.y };
             // Popup'ı aç
             document.getElementById('overlay').style.display = 'block';
             document.getElementById('tempPopup').style.display = 'block';
