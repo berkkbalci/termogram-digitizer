@@ -1320,25 +1320,48 @@
             return Math.max(min, Math.min(max, value));
         }
 
+        function median(values) {
+            if (!values.length) return 0;
+            const sorted = [...values].sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+        }
+
+        function robustReferenceFilter(refs) {
+            if (refs.length <= 2) return refs;
+            const ys = refs.map(r => r.y);
+            const vals = refs.map(r => r.temperature);
+            const my = median(ys);
+            const mv = median(vals);
+            const ad = refs.map(r => Math.abs((r.y - my) + (r.temperature - mv)));
+            const mad = median(ad) || 1;
+            return refs.filter((r) => {
+                const score = Math.abs((r.y - my) + (r.temperature - mv)) / mad;
+                return score <= 3.5;
+            });
+        }
+
         function buildCalibrationModel(termogram, references) {
             const unitMeta = getDataTypeMeta();
             const model = {
                 method: 'grid_linear',
                 pointCount: references.length,
+                usedReferenceCount: 0,
                 unit: unitMeta.unit,
                 valueName: unitMeta.valueName
             };
 
             // Try linear regression with reference points when possible.
-            if (references.length >= 2) {
+            const filteredRefs = robustReferenceFilter(references);
+            if (filteredRefs.length >= 2) {
                 let sumY = 0, sumV = 0, sumYV = 0, sumYY = 0;
-                for (const rp of references) {
+                for (const rp of filteredRefs) {
                     sumY += rp.y;
                     sumV += rp.temperature;
                     sumYV += rp.y * rp.temperature;
                     sumYY += rp.y * rp.y;
                 }
-                const n = references.length;
+                const n = filteredRefs.length;
                 const denom = n * sumYY - sumY * sumY;
 
                 if (Math.abs(denom) > 1e-6) {
@@ -1348,18 +1371,19 @@
                     let ssRes = 0;
                     let ssTot = 0;
                     const meanV = sumV / n;
-                    for (const rp of references) {
+                    for (const rp of filteredRefs) {
                         const pred = slope * rp.y + intercept;
                         ssRes += (rp.temperature - pred) ** 2;
                         ssTot += (rp.temperature - meanV) ** 2;
                     }
                     const r2 = ssTot > 0 ? (1 - ssRes / ssTot) : 1;
 
-                    if (isFinite(slope) && isFinite(intercept)) {
+                    if (isFinite(slope) && isFinite(intercept) && r2 >= 0.55) {
                         model.method = 'reference_regression';
                         model.slope = slope;
                         model.intercept = intercept;
                         model.r2 = clamp(r2, -1, 1);
+                        model.usedReferenceCount = filteredRefs.length;
                     }
                 }
             }
@@ -1402,8 +1426,32 @@
                 coverageRatio: Math.round(coverageRatio * 1000) / 1000,
                 pointDensity: Math.round(pointDensity * 1000) / 1000,
                 referenceCount: references.length,
+                usedReferenceCount: calibration.usedReferenceCount || 0,
                 calibrationMethod: calibration.method,
                 calibrationR2: calibration.r2 !== undefined ? Math.round(calibration.r2 * 1000) / 1000 : null
+            };
+        }
+
+        function evaluateTraceConfidence(quality, calibration, pointCount) {
+            const hasEnoughPoints = pointCount >= 120;
+            const hasCoverage = (quality.coverageRatio || 0) >= 0.45;
+            const hasDensity = (quality.pointDensity || 0) >= 0.03;
+            const goodRefRegression = calibration.method === 'reference_regression'
+                && (quality.calibrationR2 ?? 0) >= 0.55
+                && (quality.usedReferenceCount || 0) >= 2;
+            const acceptableFallback = calibration.method === 'grid_linear'
+                && (quality.referenceCount || 0) >= 2
+                && hasCoverage;
+            const isConfident = hasEnoughPoints && hasCoverage && hasDensity && (goodRefRegression || acceptableFallback);
+            return {
+                isConfident,
+                reasons: {
+                    hasEnoughPoints,
+                    hasCoverage,
+                    hasDensity,
+                    goodRefRegression,
+                    acceptableFallback
+                }
             };
         }
 
@@ -1669,6 +1717,7 @@
                 const xpEarned = Math.round((baseXP + refBonus) * streakMultiplier);
 
                 // Firebase'e kaydet — referans noktalarını ve XP'yi dahil et
+                const confidence = evaluateTraceConfidence(qualityMetrics, calibrationModel, points.length);
                 await addDoc(collection(window.db, 'traces'), {
                     termogramId: currentTermogram.id,
                     userId: currentUser.uid,
@@ -1683,15 +1732,21 @@
                     })),
                     calibration: calibrationModel,
                     qualityMetrics: qualityMetrics,
+                    moderation: {
+                        isConfident: confidence.isConfident,
+                        reasons: confidence.reasons
+                    },
                     xpEarned: xpEarned,
                     createdAt: serverTimestamp()
                 });
 
                 const termRef = doc(window.db, 'termograms', currentTermogram.id);
-                const newCount = currentTermogram.traceCount + 1;
-                const updateData = { traceCount: increment(1) };
-                if (newCount >= currentTermogram.maxTraces) updateData.status = 'completed';
-                await updateDoc(termRef, updateData);
+                if (confidence.isConfident) {
+                    const newCount = currentTermogram.traceCount + 1;
+                    const updateData = { traceCount: increment(1) };
+                    if (newCount >= currentTermogram.maxTraces) updateData.status = 'completed';
+                    await updateDoc(termRef, updateData);
+                }
 
                 // Kullanıcı dokümanını güncelle
                 const userRef = doc(window.db, 'users', currentUser.uid);
@@ -1724,6 +1779,10 @@
                 showXPFloat(xpEarned);
                 setTimeout(() => {
                     popup.style.display = 'none';
+                    if (!confidence.isConfident) {
+                        document.getElementById('statusText').textContent =
+                            '⚠️ Çizim düşük güvenli bulundu; kayıt kuyruğa geri alındı, lütfen bir sonraki kayıtta daha geniş alanı takip edin.';
+                    }
                     getNewTermogram();
                     // Sıralama açıksa güncelle
                     if (document.getElementById('leaderboardContent').style.display !== 'none') {
