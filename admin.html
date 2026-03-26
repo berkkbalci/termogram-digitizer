@@ -801,20 +801,30 @@
             let outlierFlags = currentTraceData.map(() => false);
 
             if (currentTraceData.length >= 2) {
-                // First pass: compute median with all traces
-                let initialAvg = computeAverageCurve(currentTraceData.map(t => t.rawPoints));
+                const allRaw = currentTraceData.map(t => t.rawPoints);
 
-                // Detect outliers based on z-score
-                if (initialAvg.length > 0 && currentTraceData.length >= 3) {
-                    outlierFlags = detectOutliers(currentTraceData.map(t => t.rawPoints), initialAvg);
+                // Adım 1: Kalite filtresi — çok kısa/az noktalı çizimleri outlier say
+                const { invalidIndices } = filterValidTraces(allRaw);
+                if (invalidIndices.size > 0) {
+                    outlierFlags = outlierFlags.map((_, i) => invalidIndices.has(i));
                 }
 
-                // Recompute median excluding outliers
-                const inlierPoints = currentTraceData.filter((_, i) => !outlierFlags[i]).map(t => t.rawPoints);
+                // Adım 2: İlk ortalama eğriyi geçerli çizimlerle hesapla
+                const validRaw = allRaw.filter((_, i) => !outlierFlags[i]);
+                let initialAvg = computeAverageCurve(validRaw.length >= 2 ? validRaw : allRaw);
+
+                // Adım 3: IQR tabanlı outlier tespiti (z-score yerine)
+                if (initialAvg.length > 0 && currentTraceData.length >= 3) {
+                    const iqrFlags = detectOutliersIQR(allRaw, initialAvg);
+                    outlierFlags = outlierFlags.map((f, i) => f || iqrFlags[i]);
+                }
+
+                // Adım 4: Outlier'ları çıkarıp ortalamayı yeniden hesapla + pürüzsüzleştir
+                const inlierPoints = allRaw.filter((_, i) => !outlierFlags[i]);
                 if (inlierPoints.length >= 2) {
-                    currentAveragePoints = computeAverageCurve(inlierPoints);
+                    currentAveragePoints = smoothCurve(computeAverageCurve(inlierPoints));
                 } else {
-                    currentAveragePoints = initialAvg;
+                    currentAveragePoints = smoothCurve(initialAvg);
                 }
 
                 currentScores = currentTraceData.map((trace, i) => {
@@ -877,34 +887,41 @@
                 const traces = allTraces.filter(t => t.termogramId === termogram.id);
                 if (traces.length < 2) continue;
 
-                // Compute initial median curve with all traces
+                // Adım 1: Kalite filtresi
                 const allRawPoints = traces.map(t => t.rawPoints || []);
-                let averagePoints = computeAverageCurve(allRawPoints);
+                const { invalidIndices: lb_invalid } = filterValidTraces(allRawPoints);
+                const qualityRaw = allRawPoints.filter((_, i) => !lb_invalid.has(i));
+                const workingRaw = qualityRaw.length >= 2 ? qualityRaw : allRawPoints;
+
+                let averagePoints = computeAverageCurve(workingRaw);
                 if (averagePoints.length === 0) continue;
 
-                // Step 1: Outlier detection — recompute average without statistical outliers
-                if (traces.length >= 3) {
-                    const outlierFlags = detectOutliers(allRawPoints, averagePoints);
-                    const inlierPoints = allRawPoints.filter((_, i) => !outlierFlags[i]);
+                // Adım 2: IQR tabanlı outlier tespiti
+                if (workingRaw.length >= 3) {
+                    const iqrFlags = detectOutliersIQR(workingRaw, averagePoints);
+                    const inlierPoints = workingRaw.filter((_, i) => !iqrFlags[i]);
                     if (inlierPoints.length >= 2) {
                         const inlierAvg = computeAverageCurve(inlierPoints);
                         if (inlierAvg.length > 0) averagePoints = inlierAvg;
                     }
                 }
 
-                // Step 2: Trimmed mean — if 5+ traces, exclude best and worst by MAE
-                if (traces.length >= 5) {
-                    const traceMAEs = traces.map((trace, i) => ({
+                // Adım 3: Trimmed mean — sadece en kötü %15'i at, en iyileri koru
+                if (workingRaw.length >= 5) {
+                    const traceMAEs = workingRaw.map((pts, i) => ({
                         index: i,
-                        mae: computeDeviation(trace.rawPoints || [], averagePoints).mae
+                        mae: computeDeviation(pts, averagePoints).mae
                     }));
                     traceMAEs.sort((a, b) => a.mae - b.mae);
-                    // Exclude lowest MAE (best) and highest MAE (worst)
-                    const trimmedIndices = new Set(traceMAEs.slice(1, -1).map(t => t.index));
-                    const trimmedRawPoints = allRawPoints.filter((_, i) => trimmedIndices.has(i));
+                    const trimCount = Math.max(1, Math.floor(workingRaw.length * 0.15));
+                    const keptIndices = new Set(traceMAEs.slice(0, workingRaw.length - trimCount).map(t => t.index));
+                    const trimmedRawPoints = workingRaw.filter((_, i) => keptIndices.has(i));
                     const trimmedAvg = computeAverageCurve(trimmedRawPoints);
                     if (trimmedAvg.length > 0) averagePoints = trimmedAvg;
                 }
+
+                // Adım 4: Pürüzsüzleştir
+                averagePoints = smoothCurve(averagePoints);
 
                 const estimatedHeight = (termogram.gridBottom - termogram.gridTop) || 950;
                 const maxAcceptable = estimatedHeight * 0.15;
@@ -996,6 +1013,54 @@
             const s = [...arr].sort((a, b) => a - b);
             const mid = Math.floor(s.length / 2);
             return s.length % 2 !== 0 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+        }
+
+        // ── Kalite filtresi: çok az noktalı veya çok kısa çizimleri eler ──
+        function filterValidTraces(allRawPoints, minPoints = 30, minCoverageRatio = 0.10) {
+            if (!allRawPoints.length) return { validPoints: [], invalidIndices: new Set() };
+            const allXs = allRawPoints.flatMap(pts => pts.map(p => p.x));
+            if (!allXs.length) return { validPoints: allRawPoints, invalidIndices: new Set() };
+            const globalMin = Math.min(...allXs);
+            const globalMax = Math.max(...allXs);
+            const totalWidth = globalMax - globalMin || 1;
+            const invalidIndices = new Set();
+            const validPoints = [];
+            allRawPoints.forEach((pts, i) => {
+                if (pts.length < minPoints) { invalidIndices.add(i); return; }
+                const traceMin = Math.min(...pts.map(p => p.x));
+                const traceMax = Math.max(...pts.map(p => p.x));
+                if ((traceMax - traceMin) / totalWidth < minCoverageRatio) { invalidIndices.add(i); return; }
+                validPoints.push(pts);
+            });
+            return { validPoints, invalidIndices };
+        }
+
+        // ── IQR tabanlı outlier tespiti: z-score'dan daha sağlam, az veriyle de çalışır ──
+        function detectOutliersIQR(allRawPoints, averagePoints) {
+            if (allRawPoints.length < 3) return allRawPoints.map(() => false);
+            const maes = allRawPoints.map(pts => computeDeviation(pts, averagePoints).mae);
+            const sorted = [...maes].sort((a, b) => a - b);
+            const n = sorted.length;
+            const q1 = sorted[Math.floor(n * 0.25)];
+            const q3 = sorted[Math.floor(n * 0.75)];
+            const iqr = q3 - q1;
+            // Az kişide (n<8) eşiği geniş tut, çok kişide daha sıkı
+            const multiplier = n < 8 ? 3.0 : 1.5;
+            const threshold = q3 + multiplier * iqr;
+            return maes.map(mae => mae > threshold);
+        }
+
+        // ── Ortalama eğriyi pürüzsüzleştir (moving average) ──
+        function smoothCurve(points, windowSize = 7) {
+            if (points.length < windowSize) return points;
+            const half = Math.floor(windowSize / 2);
+            return points.map((p, i) => {
+                const start = Math.max(0, i - half);
+                const end = Math.min(points.length - 1, i + half);
+                const slice = points.slice(start, end + 1);
+                const avgY = slice.reduce((s, pt) => s + pt.y, 0) / slice.length;
+                return { x: p.x, y: Math.round(avgY) };
+            });
         }
 
         function computeAverageCurve(allRawPoints) {
