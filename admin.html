@@ -470,6 +470,7 @@
                 <option value="termogram">🌡️ Termogram</option>
                 <option value="barograf">📊 Barograf</option>
                 <option value="aktinograf">☀️ Aktinograf</option>
+                <option value="nem">💧 Nem</option>
             </select>
             <select id="termogramSelect" onchange="onTermogramSelect()">
                 <option value="">Kayıt seçin...</option>
@@ -716,7 +717,7 @@
         function populateTermogramSelect(list) {
             const select = document.getElementById('termogramSelect');
             select.innerHTML = '<option value="">Kayıt seçin...</option>';
-            const typeLabels = { termogram: '🌡️ Termogram', barograf: '📊 Barograf', aktinograf: '☀️ Aktinograf' };
+            const typeLabels = { termogram: '🌡️ Termogram', barograf: '📊 Barograf', aktinograf: '☀️ Aktinograf', nem: '💧 Nem' };
             const grouped = {};
             for (const t of list) {
                 const dt = t.dataType || 'termogram';
