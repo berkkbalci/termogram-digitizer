@@ -1,76 +1,158 @@
 <!-- scripts/seed-firestore.html -->
-<!-- Firestore'a görsel havuzunu yükleyen araç -->
-<!-- Temizle + Yükle işlemini tek butonla yapar -->
+<!-- Firestore görsel havuzu yönetim aracı -->
 <!DOCTYPE html>
 <html>
 
 <head>
     <meta charset="UTF-8">
-    <title>Firestore Seed</title>
+    <title>Termogram Admin — Görsel Yönetimi</title>
     <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: system-ui;
-            max-width: 700px;
+            font-family: system-ui, sans-serif;
+            max-width: 800px;
             margin: 40px auto;
-            padding: 0 20px;
+            padding: 0 24px;
+            color: #1e293b;
         }
-
+        h2 { font-size: 1.4rem; margin-bottom: 6px; }
+        h3 { font-size: 1rem; color: #475569; margin: 24px 0 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
         button {
-            padding: 10px 20px;
-            font-size: 1rem;
-            margin: 5px;
-            cursor: pointer;
-            border: none;
-            border-radius: 6px;
-            color: white;
+            padding: 9px 18px; font-size: 0.9rem; margin: 4px;
+            cursor: pointer; border: none; border-radius: 6px; color: white;
         }
-
-        .btn-seed {
-            background: #2563eb;
-        }
-
-        .btn-reset {
-            background: #dc2626;
-        }
-
-        .btn-seed:hover {
-            background: #1d4ed8;
-        }
-
-        .btn-reset:hover {
-            background: #b91c1c;
-        }
+        .btn-blue   { background: #2563eb; } .btn-blue:hover   { background: #1d4ed8; }
+        .btn-red    { background: #dc2626; } .btn-red:hover    { background: #b91c1c; }
+        .btn-green  { background: #16a34a; } .btn-green:hover  { background: #15803d; }
+        .btn-gray   { background: #64748b; } .btn-gray:hover   { background: #475569; }
+        .btn-sm { padding: 6px 12px; font-size: 0.82rem; }
 
         pre {
-            background: #f3f4f6;
-            padding: 16px;
-            border-radius: 8px;
-            max-height: 500px;
-            overflow-y: auto;
+            background: #f8fafc; border: 1px solid #e2e8f0;
+            padding: 14px; border-radius: 8px;
+            max-height: 220px; overflow-y: auto;
+            font-size: 0.82rem; line-height: 1.5;
         }
-
         .warning {
-            background: #fef3c7;
-            border: 1px solid #f59e0b;
-            padding: 12px;
-            border-radius: 8px;
-            margin: 16px 0;
+            background: #fef3c7; border: 1px solid #f59e0b;
+            padding: 12px; border-radius: 8px; margin: 12px 0; font-size: 0.9rem;
         }
+        .info {
+            background: #eff6ff; border: 1px solid #93c5fd;
+            padding: 12px; border-radius: 8px; margin: 12px 0; font-size: 0.9rem;
+        }
+        .card {
+            border: 1px solid #e2e8f0; border-radius: 10px;
+            padding: 20px; margin: 16px 0; background: #f8fafc;
+        }
+        .form-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 160px; }
+        label { font-size: 0.8rem; font-weight: 600; color: #475569; }
+        input, select {
+            padding: 8px 10px; border: 1px solid #cbd5e1;
+            border-radius: 6px; font-size: 0.9rem; background: white;
+        }
+        input:focus, select:focus { outline: 2px solid #3b82f6; border-color: transparent; }
+        .grid-preview {
+            background: #f1f5f9; border: 1px solid #cbd5e1;
+            border-radius: 6px; padding: 10px; font-size: 0.78rem;
+            color: #64748b; line-height: 1.8;
+        }
+        .ocr-area { position: relative; }
+        .ocr-status { font-size: 0.78rem; color: #64748b; margin-top: 4px; min-height: 18px; }
+        .tag { display: inline-block; background: #dbeafe; color: #1d4ed8;
+               border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; margin: 2px; }
+        #photoList { margin-top: 8px; }
+        .photo-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 0.85rem;
+        }
+        .photo-row:last-child { border-bottom: none; }
+        .photo-row .meta { color: #94a3b8; font-size: 0.75rem; margin-top: 2px; }
     </style>
 </head>
 
 <body>
-    <h2>Firestore Görsel Havuzu Yönetimi</h2>
+    <h2>🗂️ Termogram Admin — Görsel Havuzu</h2>
+    <p style="color:#64748b;font-size:0.85rem;margin-top:4px;">
+        Yeni fotoğraf ekle, mevcut listeyi yönet, Firestore'u güncelle.
+    </p>
 
-    <div class="warning">
-        ⚠️ "Temizle ve Yeniden Yükle" butonu tüm mevcut verileri (termogramlar + çizimler) silip
-        sıfırdan yükler. Test verileriniz kaybolur.
+    <!-- ── MEVCUT FOTOĞRAFLAR ── -->
+    <h3>📋 Firestore'daki Fotoğraflar</h3>
+    <button class="btn-gray btn-sm" onclick="listPhotos()">🔄 Listeyi Yenile</button>
+    <div id="photoList" style="margin-top:10px;">
+        <div style="color:#94a3b8;font-size:0.85rem;">Liste yükleniyor...</div>
     </div>
 
-    <button class="btn-seed" onclick="seedOnly()">📥 Sadece Yükle (mevcut verilere ekle)</button>
-    <button class="btn-reset" onclick="cleanAndSeed()">🔄 Temizle ve Yeniden Yükle</button>
+    <!-- ── YENİ FOTOĞRAF EKLE ── -->
+    <h3>➕ Yeni Fotoğraf Ekle</h3>
 
-    <pre id="log">Bekleniyor...</pre>
+    <div class="info">
+        💡 Aynı türdeki kağıtlar aynı grid koordinatlarını kullanır. Sadece <strong>dosya adı</strong> ve
+        <strong>tarih/saat</strong> girmen yeterli — grid değerleri otomatik dolar.
+    </div>
+
+    <div class="card">
+        <!-- Tür seçimi -->
+        <div class="form-row">
+            <div class="form-group">
+                <label>Veri Türü</label>
+                <select id="newType" onchange="onTypeChange()">
+                    <option value="termogram">🌡️ Termogram</option>
+                    <option value="barograf">📊 Barograf</option>
+                    <option value="aktinograf">☀️ Aktinograf</option>
+                    <option value="nem">💧 Nem</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Dosya Adı (images/TÜR/ içinde)</label>
+                <input type="text" id="newFilename" placeholder="ör: 2005_MART-14.png"
+                    oninput="onFilenameChange()" />
+            </div>
+        </div>
+
+        <!-- Tarih girişi + OCR -->
+        <div class="form-row">
+            <div class="form-group ocr-area">
+                <label>Başlangıç Tarihi & Saati</label>
+                <input type="datetime-local" id="newStart" step="3600" />
+            </div>
+            <div class="form-group">
+                <label>Bitiş Tarihi & Saati</label>
+                <input type="datetime-local" id="newEnd" step="3600" />
+            </div>
+        </div>
+
+        <!-- OCR butonu -->
+        <div style="margin-bottom:12px;">
+            <button class="btn-gray btn-sm" onclick="runOCR()">🔍 Fotoğraftan Tarihi Oku (OCR)</button>
+            <div class="ocr-status" id="ocrStatus">— OCR çalıştırmak için önce dosya adını gir</div>
+        </div>
+
+        <!-- Grid önizleme -->
+        <div class="grid-preview" id="gridPreview">Tür seçince grid değerleri burada görünür.</div>
+
+        <!-- Ekle butonu -->
+        <div style="margin-top:14px;">
+            <button class="btn-green" onclick="addPhoto()">✅ Firestore'a Ekle</button>
+        </div>
+    </div>
+
+    <!-- ── TOPLU İŞLEMLER ── -->
+    <h3>⚙️ Toplu İşlemler</h3>
+    <div class="warning">
+        ⚠️ "Temizle ve Yeniden Yükle" tüm mevcut verileri (fotoğraflar + çizimler) silip
+        sadece aşağıdaki 4 temel fotoğrafı yükler.
+    </div>
+    <button class="btn-blue" onclick="seedOnly()">📥 Temel 4 Fotoğrafı Yükle (ekleme mod)</button>
+    <button class="btn-red"  onclick="cleanAndSeed()">🔄 Temizle ve Temel 4'ü Yükle</button>
+
+    <h3>📄 Log</h3>
+    <pre id="log">Hazır.</pre>
+
+    <!-- ── SCRIPTS ── -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
@@ -89,104 +171,270 @@
         });
         const db = getFirestore(app);
         const auth = getAuth(app);
-
         await signInAnonymously(auth);
-        document.getElementById('log').textContent = 'Firebase bağlantısı hazır. Bir buton seçin.\n';
+        log('Firebase bağlantısı hazır.\n');
 
-        // ── Termogramlar + Diğer Veri Tipleri ──
+        // ─────────────────────────────────────────────────
+        // GRID PREsets — piksel analizi ile ölçüldü (2026-03-26)
+        // Aynı kağıt türü = aynı grid koordinatları
+        // ─────────────────────────────────────────────────
+        const GRID_PRESETS = {
+            termogram: {
+                gridLeft: 115, gridRight: 3415, gridTop: 55, gridBottom: 1150,
+                tempMin: -10, tempMax: 40,
+                desc: 'Y: -10°C (alt) → 40°C (üst) | 7 günlük şerit'
+            },
+            barograf: {
+                gridLeft: 100, gridRight: 5000, gridTop: 60, gridBottom: 1950,
+                tempMin: 950, tempMax: 1050,
+                desc: 'Y: 950 hPa (alt) → 1050 hPa (üst) | Chart 21a mb | 25 saatlik şerit'
+            },
+            aktinograf: {
+                gridLeft: 115, gridRight: 3551, gridTop: 40, gridBottom: 960,
+                tempMin: 0, tempMax: 1400,
+                desc: 'Y: 0 W/m² (alt) → 1400 W/m² (üst) | ≈2.0 cal/cm²·min | 25 saatlik şerit'
+            },
+            nem: {
+                gridLeft: 76, gridRight: 3485, gridTop: 55, gridBottom: 1082,
+                tempMin: 100, tempMax: 0,
+                desc: 'Y: 0% (üst) → 100% (alt) — değerler ters girildi | 24 saatlik şerit'
+            }
+        };
+
+        // ─────────────────────────────────────────────────
+        // TEMEL 4 FOTOĞRAF (seed)
+        // ─────────────────────────────────────────────────
         const TERMOGRAMS = [
-            // Tüm grid değerleri görsel piksel analizi ile ölçüldü (2026-03-26)
             {
                 id: "1997_AGUSTOS-21",
                 imageFile: "images/termogram/1997_AGUSTOS-21.png",
-                label: "1997 Ağustos 21",
-                dataType: "termogram",
-                // 7 günlük şerit (3453×1204 px) — Y ekseni: üst=40°C, alt=-10°C
+                label: "1997 Ağustos 21", dataType: "termogram",
                 startDate: "1997-08-21T00:00:00", endDate: "1997-08-28T00:00:00",
-                tempMin: -10, tempMax: 40,
-                gridLeft: 115, gridRight: 3415, gridTop: 55, gridBottom: 1150,
+                ...GRID_PRESETS.termogram,
                 traceCount: 0, maxTraces: 50, status: "available"
             },
             {
                 id: "BARO_2003_EKIM-08",
                 imageFile: "images/barograf/2003_EKIM-08.png",
-                label: "Barograf 2003 Ekim 08",
-                dataType: "barograf",
-                // 25 saatlik şerit: 08 Eki 06:00 → 09 Eki 07:00 (5019×2046 px)
-                // Y ekseni: üst=1050 hPa, alt=950 hPa (Chart 21a mb)
+                label: "Barograf 2003 Ekim 08", dataType: "barograf",
                 startDate: "2003-10-08T06:00:00", endDate: "2003-10-09T07:00:00",
-                tempMin: 950, tempMax: 1050,
-                gridLeft: 100, gridRight: 5000, gridTop: 60, gridBottom: 1950,
+                ...GRID_PRESETS.barograf,
                 traceCount: 0, maxTraces: 50, status: "available"
             },
             {
                 id: "AKTINO_1981_EKIM-25",
                 imageFile: "images/aktinograf/1981_EKIM-25.png",
-                label: "Aktinograf 1981 Ekim 25",
-                dataType: "aktinograf",
-                // 25 saatlik şerit: 24 Eki 20:00 → 25 Eki 21:00 (3567×1077 px)
-                // Y ekseni: üst=1400 W/m², alt=0 (≈2.0 cal/cm²·min)
+                label: "Aktinograf 1981 Ekim 25", dataType: "aktinograf",
                 startDate: "1981-10-24T20:00:00", endDate: "1981-10-25T21:00:00",
-                tempMin: 0, tempMax: 1400,
-                gridLeft: 115, gridRight: 3551, gridTop: 40, gridBottom: 960,
+                ...GRID_PRESETS.aktinograf,
                 traceCount: 0, maxTraces: 50, status: "available"
             },
             {
                 id: "NEM_2020_MAYIS-10",
                 imageFile: "images/nem/2020_MAYIS-10.png",
-                label: "Nem 2020 Mayıs 10",
-                dataType: "nem",
-                // 24 saatlik şerit: 10 May 08:00 → 11 May 08:00 (3534×1119 px)
-                // Y ekseni TERS: üst=0%, alt=100% — tempMax/Min ters girildi
+                label: "Nem 2020 Mayıs 10", dataType: "nem",
                 startDate: "2020-05-10T08:00:00", endDate: "2020-05-11T08:00:00",
-                tempMin: 100, tempMax: 0,
-                gridLeft: 76, gridRight: 3485, gridTop: 55, gridBottom: 1082,
+                ...GRID_PRESETS.nem,
                 traceCount: 0, maxTraces: 50, status: "available"
             }
         ];
-        async function deleteCollection(collectionName) {
-            const log = document.getElementById('log');
-            const snapshot = await getDocs(collection(db, collectionName));
-            if (snapshot.empty) { log.textContent += `  ${collectionName}: zaten boş\n`; return 0; }
-            let count = 0;
-            for (const docSnap of snapshot.docs) {
-                await deleteDoc(doc(db, collectionName, docSnap.id));
-                count++;
-            }
-            log.textContent += `  ${collectionName}: ${count} belge silindi\n`;
-            return count;
+
+        // ─────────────────────────────────────────────────
+        // Yardımcılar
+        // ─────────────────────────────────────────────────
+        function log(msg) {
+            const el = document.getElementById('log');
+            el.textContent += msg;
+            el.scrollTop = el.scrollHeight;
         }
 
-        async function uploadTermograms() {
-            const log = document.getElementById('log');
-            for (const t of TERMOGRAMS) {
+        async function deleteCollection(name) {
+            const snap = await getDocs(collection(db, name));
+            if (snap.empty) { log(`  ${name}: zaten boş\n`); return 0; }
+            for (const d of snap.docs) await deleteDoc(doc(db, name, d.id));
+            log(`  ${name}: ${snap.size} belge silindi\n`);
+            return snap.size;
+        }
+
+        async function uploadList(list) {
+            for (const t of list) {
                 await setDoc(doc(db, "termograms", t.id), t);
-                log.textContent += `  ✓ ${t.id} yüklendi\n`;
+                log(`  ✓ ${t.id}\n`);
             }
-            log.textContent += `\n✅ Tamamlandı! ${TERMOGRAMS.length} termogram yüklendi.\n`;
+            log(`\n✅ ${list.length} fotoğraf yüklendi.\n`);
         }
 
+        // ─────────────────────────────────────────────────
+        // Fotoğraf listesi
+        // ─────────────────────────────────────────────────
+        window.listPhotos = async function () {
+            const snap = await getDocs(collection(db, 'termograms'));
+            const el = document.getElementById('photoList');
+            if (snap.empty) { el.innerHTML = '<div style="color:#94a3b8;font-size:0.85rem;">Henüz fotoğraf yok.</div>'; return; }
+            const ICONS = { termogram: '🌡️', barograf: '📊', aktinograf: '☀️', nem: '💧' };
+            el.innerHTML = snap.docs.map(d => {
+                const t = d.data();
+                return `<div class="photo-row">
+                    <div>
+                        <strong>${ICONS[t.dataType] || '📄'} ${t.label || t.id}</strong>
+                        <div class="meta">${t.imageFile} &nbsp;|&nbsp; ${t.startDate?.slice(0,10)} → ${t.endDate?.slice(0,10)}</div>
+                    </div>
+                    <div>
+                        <span class="tag">${t.dataType}</span>
+                        <span class="tag">${t.traceCount}/${t.maxTraces} çizim</span>
+                        <span class="tag" style="background:${t.status==='available'?'#dcfce7':'#fef9c3'};color:${t.status==='available'?'#15803d':'#92400e'}">${t.status}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        };
+
+        // ─────────────────────────────────────────────────
+        // Tür değişince grid önizleme güncelle
+        // ─────────────────────────────────────────────────
+        window.onTypeChange = function () {
+            const type = document.getElementById('newType').value;
+            const p = GRID_PRESETS[type];
+            document.getElementById('gridPreview').innerHTML =
+                `<strong>Grid Koordinatları (${type}):</strong><br>` +
+                `gridLeft=${p.gridLeft} | gridRight=${p.gridRight} | gridTop=${p.gridTop} | gridBottom=${p.gridBottom}<br>` +
+                `tempMin=${p.tempMin} | tempMax=${p.tempMax}<br>` +
+                `<em>${p.desc}</em>`;
+        };
+        window.onTypeChange(); // ilk yükleme
+
+        window.onFilenameChange = function () {
+            document.getElementById('ocrStatus').textContent = '— OCR için butona bas';
+        };
+
+        // ─────────────────────────────────────────────────
+        // OCR — Tesseract.js ile tarih oku (AI yok, ücretsiz)
+        // ─────────────────────────────────────────────────
+        window.runOCR = async function () {
+            const type     = document.getElementById('newType').value;
+            const filename = document.getElementById('newFilename').value.trim();
+            if (!filename) { alert('Önce dosya adını gir.'); return; }
+
+            const imgPath = `../images/${type}/${filename}`;
+            const status  = document.getElementById('ocrStatus');
+            status.textContent = '⏳ OCR çalışıyor, bekle...';
+
+            try {
+                const result = await Tesseract.recognize(imgPath, 'deu+eng', {
+                    logger: m => { if (m.status === 'recognizing text') status.textContent = `⏳ %${Math.round(m.progress * 100)}`; }
+                });
+
+                const text = result.data.text;
+                log(`\nOCR Çıktısı (ham):\n${text.slice(0, 400)}\n`);
+
+                // Tarih kalıpları: DD.MM.YY, DD.MM.YYYY
+                const dateMatches = [...text.matchAll(/(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{2,4})/g)];
+                if (dateMatches.length === 0) {
+                    status.textContent = '⚠️ Tarih bulunamadı — elle gir';
+                    return;
+                }
+
+                const dates = dateMatches.map(m => {
+                    let [, d, mo, y] = m;
+                    if (y.length === 2) y = y < '30' ? '20' + y : '19' + y;
+                    return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+                }).filter((v, i, a) => a.indexOf(v) === i); // tekrarsız
+
+                status.textContent = `✅ Bulunan tarihler: ${dates.join(', ')} — aşağıya dolduruldu`;
+                log(`OCR tarihleri: ${dates.join(', ')}\n`);
+
+                // İlk iki tarihi start/end olarak doldur
+                if (dates[0]) document.getElementById('newStart').value = dates[0] + 'T00:00';
+                if (dates[1]) document.getElementById('newEnd').value   = dates[1] + 'T00:00';
+                else if (dates[0]) {
+                    // Tek tarih: türe göre bitiş tahmin et
+                    const d = new Date(dates[0]);
+                    const hours = { termogram: 24*7, barograf: 25, aktinograf: 25, nem: 24 };
+                    d.setHours(d.getHours() + (hours[type] || 24));
+                    document.getElementById('newEnd').value = d.toISOString().slice(0,16);
+                }
+            } catch (err) {
+                status.textContent = `❌ OCR hatası: ${err.message}`;
+                log(`OCR hatası: ${err.message}\n`);
+            }
+        };
+
+        // ─────────────────────────────────────────────────
+        // Yeni fotoğraf Firestore'a ekle
+        // ─────────────────────────────────────────────────
+        window.addPhoto = async function () {
+            const type     = document.getElementById('newType').value;
+            const filename = document.getElementById('newFilename').value.trim();
+            const start    = document.getElementById('newStart').value;
+            const end      = document.getElementById('newEnd').value;
+
+            if (!filename || !start || !end) {
+                alert('Dosya adı, başlangıç ve bitiş tarihi zorunlu.'); return;
+            }
+
+            const preset = GRID_PRESETS[type];
+
+            // ID oluştur: tür prefix + dosya adından tarih kısmı
+            const baseName = filename.replace(/\.png$/i, '');
+            const prefixes = { termogram: '', barograf: 'BARO_', aktinograf: 'AKTINO_', nem: 'NEM_' };
+            const id = prefixes[type] + baseName;
+
+            // Label: tarihi okunabilir hale getir
+            const startDate = new Date(start);
+            const label = `${type.charAt(0).toUpperCase()+type.slice(1)} ${startDate.getFullYear()} — ${baseName}`;
+
+            const record = {
+                id,
+                imageFile: `images/${type}/${filename}`,
+                label,
+                dataType: type,
+                startDate: start + ':00',
+                endDate:   end   + ':00',
+                ...preset,
+                traceCount: 0,
+                maxTraces: 50,
+                status: 'available'
+            };
+
+            log(`\n📤 Ekleniyor: ${id}\n`);
+            try {
+                await setDoc(doc(db, 'termograms', id), record);
+                log(`✅ ${id} başarıyla eklendi.\n`);
+                listPhotos();
+                // Formu temizle
+                document.getElementById('newFilename').value = '';
+                document.getElementById('newStart').value    = '';
+                document.getElementById('newEnd').value      = '';
+                document.getElementById('ocrStatus').textContent = '—';
+            } catch (err) {
+                log(`❌ Hata: ${err.message}\n`);
+            }
+        };
+
+        // ─────────────────────────────────────────────────
+        // Toplu işlemler
+        // ─────────────────────────────────────────────────
         window.seedOnly = async function () {
-            const log = document.getElementById('log');
-            log.textContent = '📥 Termogramlar yükleniyor...\n\n';
-            try { await uploadTermograms(); }
-            catch (err) { log.textContent += `\n❌ Hata: ${err.message}\n`; }
+            document.getElementById('log').textContent = '📥 Yükleniyor...\n\n';
+            try { await uploadList(TERMOGRAMS); listPhotos(); }
+            catch (err) { log(`\n❌ Hata: ${err.message}\n`); }
         };
 
         window.cleanAndSeed = async function () {
-            if (!confirm('Tüm veriler (termogramlar + çizimler) silinecek. Emin misiniz?')) return;
-            const log = document.getElementById('log');
-            log.textContent = '🗑️ Mevcut veriler temizleniyor...\n\n';
+            if (!confirm('Tüm veriler (fotoğraflar + çizimler) silinecek. Emin misiniz?')) return;
+            document.getElementById('log').textContent = '🗑️ Temizleniyor...\n\n';
             try {
                 await deleteCollection('traces');
                 await deleteCollection('termograms');
-                log.textContent += '\n📥 Termogramlar yeniden yükleniyor...\n\n';
-                await uploadTermograms();
+                log('\n📥 Temel fotoğraflar yükleniyor...\n\n');
+                await uploadList(TERMOGRAMS);
+                listPhotos();
             } catch (err) {
-                log.textContent += `\n❌ Hata: ${err.message}\n`;
-                log.textContent += `\nİpucu: Firestore güvenlik kurallarınızın delete işlemine izin verdiğinden emin olun.\n`;
+                log(`\n❌ Hata: ${err.message}\n`);
             }
         };
+
+        // Sayfa açılınca listeyi yükle
+        listPhotos();
     </script>
 </body>
 
