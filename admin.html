@@ -465,8 +465,15 @@
     <!-- TAB 1 -->
     <div id="analysisTab" class="analysis-section active">
         <div class="controls">
+            <select id="dataTypeFilterAdmin" onchange="filterTermogramSelect()" style="padding:6px 10px;border-radius:6px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;font-size:0.82rem;">
+                <option value="">Tümü</option>
+                <option value="termogram">🌡️ Termogram</option>
+                <option value="barograf">📊 Barograf</option>
+                <option value="termohigrograf">💧 Termohigrograf</option>
+                <option value="aktinograf">☀️ Aktinograf</option>
+            </select>
             <select id="termogramSelect" onchange="onTermogramSelect()">
-                <option value="">Termogram seçin...</option>
+                <option value="">Kayıt seçin...</option>
             </select>
             <span id="statusBadge"></span>
             <span id="traceCountText" style="font-size:0.8rem; color:#94a3b8;"></span>
@@ -703,17 +710,40 @@
             const traceSnap = await getDocs(collection(window.db, 'traces'));
             allTraces = traceSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-            const select = document.getElementById('termogramSelect');
-            const sorted = [...allTermograms].sort((a, b) => b.traceCount - a.traceCount);
-            for (const t of sorted) {
-                const opt = document.createElement('option');
-                opt.value = t.id;
-                const icon = t.traceCount >= t.maxTraces ? '✅' : `⏳ ${t.traceCount}/${t.maxTraces}`;
-                opt.textContent = `${icon}  ${t.label || t.id}`;
-                select.appendChild(opt);
-            }
+            populateTermogramSelect(allTermograms);
         }
         init();
+
+        function populateTermogramSelect(list) {
+            const select = document.getElementById('termogramSelect');
+            select.innerHTML = '<option value="">Kayıt seçin...</option>';
+            const typeLabels = { termogram: '🌡️ Termogram', barograf: '📊 Barograf', termohigrograf: '💧 Termohigrograf', aktinograf: '☀️ Aktinograf' };
+            const grouped = {};
+            for (const t of list) {
+                const dt = t.dataType || 'termogram';
+                if (!grouped[dt]) grouped[dt] = [];
+                grouped[dt].push(t);
+            }
+            for (const [dt, items] of Object.entries(grouped)) {
+                const group = document.createElement('optgroup');
+                group.label = typeLabels[dt] || dt;
+                const sorted = [...items].sort((a, b) => b.traceCount - a.traceCount);
+                for (const t of sorted) {
+                    const opt = document.createElement('option');
+                    opt.value = t.id;
+                    const icon = t.traceCount >= t.maxTraces ? '✅' : `⏳ ${t.traceCount}/${t.maxTraces}`;
+                    opt.textContent = `${icon}  ${t.label || t.id}`;
+                    group.appendChild(opt);
+                }
+                select.appendChild(group);
+            }
+        }
+
+        function filterTermogramSelect() {
+            const selectedType = document.getElementById('dataTypeFilterAdmin').value;
+            const filtered = selectedType ? allTermograms.filter(t => (t.dataType || 'termogram') === selectedType) : allTermograms;
+            populateTermogramSelect(filtered);
+        }
 
         // ═══════════════════════════════════════
         // TAB 1: TERMOGRAM ANALİZİ
@@ -765,21 +795,59 @@
                 referencePoints: t.referencePoints || []
             }));
 
-            // Trace'leri çiz
-            currentTraceData.forEach((trace, i) => drawCurve(trace.rawPoints, TRACE_COLORS[i % TRACE_COLORS.length], 2));
-
-            // Ortalama eğri + puanlar
+            // Ortalama eğri + outlier tespiti + puanlar
             currentAveragePoints = [];
             currentScores = [];
+            let outlierFlags = currentTraceData.map(() => false);
+
             if (currentTraceData.length >= 2) {
-                currentAveragePoints = computeAverageCurve(currentTraceData.map(t => t.rawPoints));
-                drawCurve(currentAveragePoints, AVERAGE_COLOR, 3);
+                // First pass: compute median with all traces
+                let initialAvg = computeAverageCurve(currentTraceData.map(t => t.rawPoints));
+
+                // Detect outliers based on z-score
+                if (initialAvg.length > 0 && currentTraceData.length >= 3) {
+                    outlierFlags = detectOutliers(currentTraceData.map(t => t.rawPoints), initialAvg);
+                }
+
+                // Recompute median excluding outliers
+                const inlierPoints = currentTraceData.filter((_, i) => !outlierFlags[i]).map(t => t.rawPoints);
+                if (inlierPoints.length >= 2) {
+                    currentAveragePoints = computeAverageCurve(inlierPoints);
+                } else {
+                    currentAveragePoints = initialAvg;
+                }
+
                 currentScores = currentTraceData.map((trace, i) => {
                     const { mae, maxDev } = computeDeviation(trace.rawPoints, currentAveragePoints);
                     const maxAcceptable = canvas.height * 0.15;
                     const score = Math.max(0, Math.min(10, 10 * (1 - mae / maxAcceptable)));
-                    return { userName: trace.userName, userId: trace.userId, pointCount: trace.pointCount, mae, maxDev, score: Math.round(score * 10) / 10, color: TRACE_COLORS[i % TRACE_COLORS.length] };
+                    return { userName: trace.userName, userId: trace.userId, pointCount: trace.pointCount, mae, maxDev, score: Math.round(score * 10) / 10, color: TRACE_COLORS[i % TRACE_COLORS.length], isOutlier: outlierFlags[i] };
                 });
+            }
+
+            // Güven bandını çiz (trace'lerin arkasında)
+            if (currentAveragePoints.length > 0 && currentTraceData.length >= 2) {
+                const band = computeConfidenceBand(currentTraceData.map(t => t.rawPoints), currentAveragePoints, outlierFlags);
+                drawConfidenceBand(band);
+            }
+
+            // Trace'leri çiz (outlier'lar kesikli çizgiyle)
+            currentTraceData.forEach((trace, i) => {
+                const color = TRACE_COLORS[i % TRACE_COLORS.length];
+                if (outlierFlags[i]) {
+                    ctx.save();
+                    ctx.setLineDash([8, 6]);
+                    drawCurve(trace.rawPoints, color, 2);
+                    ctx.setLineDash([]);
+                    ctx.restore();
+                } else {
+                    drawCurve(trace.rawPoints, color, 2);
+                }
+            });
+
+            // Ortalama eğriyi çiz
+            if (currentAveragePoints.length > 0) {
+                drawCurve(currentAveragePoints, AVERAGE_COLOR, 3);
             }
 
             // Referans noktalarından kalibrasyon oluştur
@@ -788,7 +856,7 @@
             // Referans noktalarını canvas'a çiz
             drawAllRefPoints();
 
-            buildLegend(currentTraceData, currentAveragePoints.length > 0, currentRefCalibration);
+            buildLegend(currentTraceData, currentAveragePoints.length > 0, currentRefCalibration, outlierFlags);
             buildAnalysisPanel(termogram, currentTraceData, currentScores, currentRefCalibration);
         }
 
@@ -800,7 +868,7 @@
             const container = document.getElementById('leaderboardContent');
             const completedTermograms = allTermograms.filter(t => t.traceCount >= (t.maxTraces || 3));
             if (completedTermograms.length === 0) {
-                container.innerHTML = `<div class="empty-state" style="padding:60px;"><div class="icon">⏳</div><p>Henüz hiçbir termogram 3 çizime ulaşmadı.</p></div>`;
+                container.innerHTML = `<div class="empty-state" style="padding:60px;"><div class="icon">⏳</div><p>Henüz hiçbir termogram yeterli çizime ulaşmadı.</p></div>`;
                 return;
             }
 
@@ -808,8 +876,26 @@
             for (const termogram of completedTermograms) {
                 const traces = allTraces.filter(t => t.termogramId === termogram.id);
                 if (traces.length < 2) continue;
-                const averagePoints = computeAverageCurve(traces.map(t => t.rawPoints || []));
+
+                // Compute MAE for all traces first
+                const allRawPoints = traces.map(t => t.rawPoints || []);
+                let averagePoints = computeAverageCurve(allRawPoints);
                 if (averagePoints.length === 0) continue;
+
+                // Trimmed mean: if 5+ traces, exclude best and worst by MAE, recompute average from remaining 3
+                if (traces.length >= 5) {
+                    const traceMAEs = traces.map((trace, i) => ({
+                        index: i,
+                        mae: computeDeviation(trace.rawPoints || [], averagePoints).mae
+                    }));
+                    traceMAEs.sort((a, b) => a.mae - b.mae);
+                    // Exclude lowest MAE (best) and highest MAE (worst)
+                    const trimmedIndices = new Set(traceMAEs.slice(1, -1).map(t => t.index));
+                    const trimmedRawPoints = allRawPoints.filter((_, i) => trimmedIndices.has(i));
+                    const trimmedAvg = computeAverageCurve(trimmedRawPoints);
+                    if (trimmedAvg.length > 0) averagePoints = trimmedAvg;
+                }
+
                 const estimatedHeight = (termogram.gridBottom - termogram.gridTop) || 950;
                 const maxAcceptable = estimatedHeight * 0.15;
                 traces.forEach(trace => {
@@ -879,6 +965,13 @@
             ctx.strokeStyle = color; ctx.lineWidth = lineWidth; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke();
         }
 
+        function median(arr) {
+            if (arr.length === 0) return null;
+            const s = [...arr].sort((a, b) => a - b);
+            const mid = Math.floor(s.length / 2);
+            return s.length % 2 !== 0 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+        }
+
         function computeAverageCurve(allRawPoints) {
             const sorted = allRawPoints.map(pts => [...pts].sort((a, b) => a.x - b.x));
             const allMinX = Math.max(...sorted.map(pts => pts[0]?.x ?? 0));
@@ -886,9 +979,9 @@
             if (allMaxX <= allMinX) return [];
             const step = 5, avg = [];
             for (let x = allMinX; x <= allMaxX; x += step) {
-                let ySum = 0, count = 0;
-                for (const pts of sorted) { const y = interpolateY(pts, x); if (y !== null) { ySum += y; count++; } }
-                if (count > 0) avg.push({ x, y: Math.round(ySum / count) });
+                const yValues = [];
+                for (const pts of sorted) { const y = interpolateY(pts, x); if (y !== null) yValues.push(y); }
+                if (yValues.length > 0) avg.push({ x, y: Math.round(median(yValues)) });
             }
             return avg;
         }
@@ -916,13 +1009,97 @@
             return { mae: Math.round((count > 0 ? totalError / count : 0) * 10) / 10, maxDev: Math.round(maxDev * 10) / 10 };
         }
 
+        function detectOutliers(allRawPoints, averagePoints) {
+            // For each trace, compute average z-score against the median curve
+            const sortedTraces = allRawPoints.map(pts => [...pts].sort((a, b) => a.x - b.x));
+            // Compute stddev at each x position
+            const step = 5;
+            const xPositions = averagePoints.map(p => p.x);
+            const traceZScores = sortedTraces.map(() => []);
+
+            for (const avgPt of averagePoints) {
+                const deviations = [];
+                const traceYs = [];
+                for (let t = 0; t < sortedTraces.length; t++) {
+                    const y = interpolateY(sortedTraces[t], avgPt.x);
+                    traceYs.push(y);
+                    if (y !== null) deviations.push(Math.abs(y - avgPt.y));
+                }
+                const mean = deviations.length > 0 ? deviations.reduce((a, b) => a + b, 0) / deviations.length : 0;
+                const stddev = deviations.length > 1 ? Math.sqrt(deviations.reduce((s, d) => s + (d - mean) ** 2, 0) / deviations.length) : 0;
+
+                for (let t = 0; t < sortedTraces.length; t++) {
+                    if (traceYs[t] !== null && stddev > 0) {
+                        traceZScores[t].push(Math.abs(traceYs[t] - avgPt.y) / stddev);
+                    }
+                }
+            }
+
+            // A trace is an outlier if its average z-score > 2.5
+            return traceZScores.map(zs => zs.length > 0 ? (zs.reduce((a, b) => a + b, 0) / zs.length) > 2.5 : false);
+        }
+
+        function computeConfidenceBand(allRawPoints, averagePoints, outlierFlags) {
+            const inlierPoints = allRawPoints.filter((_, i) => !outlierFlags || !outlierFlags[i]);
+            const sorted = inlierPoints.map(pts => [...pts].sort((a, b) => a.x - b.x));
+            const threshold = canvas.height * 0.1;
+            const band = [];
+
+            for (const avgPt of averagePoints) {
+                const yValues = [];
+                for (const pts of sorted) {
+                    const y = interpolateY(pts, avgPt.x);
+                    if (y !== null) yValues.push(y);
+                }
+                if (yValues.length < 2) {
+                    band.push({ x: avgPt.x, upper: avgPt.y, lower: avgPt.y, confidence: 1 });
+                    continue;
+                }
+                yValues.sort((a, b) => a - b);
+                const q1 = yValues[Math.floor(yValues.length * 0.25)];
+                const q3 = yValues[Math.floor(yValues.length * 0.75)];
+                const iqr = q3 - q1;
+                const confidence = Math.max(0, 1 - iqr / threshold);
+                band.push({ x: avgPt.x, upper: q1, lower: q3, confidence });
+            }
+            return band;
+        }
+
+        function drawConfidenceBand(band) {
+            if (band.length < 2) return;
+            // Draw filled band segments with varying opacity
+            for (let i = 0; i < band.length - 1; i++) {
+                const p1 = band[i], p2 = band[i + 1];
+                const avgConf = (p1.confidence + p2.confidence) / 2;
+                // High confidence = green, low confidence = red
+                const r = Math.round(239 * (1 - avgConf) + 34 * avgConf);
+                const g = Math.round(68 * (1 - avgConf) + 197 * avgConf);
+                const b = Math.round(68 * (1 - avgConf) + 94 * avgConf);
+                const alpha = 0.15 + avgConf * 0.2;
+
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.upper);
+                ctx.lineTo(p2.x, p2.upper);
+                ctx.lineTo(p2.x, p2.lower);
+                ctx.lineTo(p1.x, p1.lower);
+                ctx.closePath();
+                ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+                ctx.fill();
+            }
+        }
+
         // ═══════════════════════════════════════
         // LEJANT + ANALİZ PANELİ
         // ═══════════════════════════════════════
 
-        function buildLegend(traceData, hasAverage, refCal) {
+        function buildLegend(traceData, hasAverage, refCal, outlierFlags) {
             const c = document.getElementById('legendContainer'); c.innerHTML = '';
-            traceData.forEach((t, i) => { c.innerHTML += `<div class="legend-item"><div class="legend-color" style="background:${TRACE_COLORS[i % TRACE_COLORS.length]}"></div><span>${t.userName}</span></div>`; });
+            traceData.forEach((t, i) => {
+                const isOutlier = outlierFlags && outlierFlags[i];
+                const outlierBadge = isOutlier ? ' <span style="color:#ef4444;font-size:0.7rem;">⚠️ Outlier</span>' : '';
+                const dashStyle = isOutlier ? 'border-top:2px dashed ${TRACE_COLORS[i % TRACE_COLORS.length]};background:none;height:0;' : `background:${TRACE_COLORS[i % TRACE_COLORS.length]}`;
+                c.innerHTML += `<div class="legend-item"><div class="legend-color" style="${isOutlier ? `border-top:2px dashed ${TRACE_COLORS[i % TRACE_COLORS.length]};background:none;height:0;margin-top:6px;` : `background:${TRACE_COLORS[i % TRACE_COLORS.length]}`}"></div><span>${t.userName}${outlierBadge}</span></div>`;
+            });
             if (hasAverage) c.innerHTML += `<div class="legend-item"><div class="legend-color" style="background:${AVERAGE_COLOR};height:5px;"></div><span style="font-weight:600;">Ortalama Eğri</span></div>`;
             if (refCal) c.innerHTML += `<div class="legend-item"><div class="legend-color" style="background:#fbbf24;width:8px;height:8px;border-radius:50%;"></div><span>Referans Noktaları (${refCal.pointCount})</span></div>`;
             c.innerHTML += `<div class="legend-item" style="color:#94a3b8; font-style:italic;">💡 Mouse'u eğri üzerinde gezdirerek sıcaklık değerlerini görün</div>`;
@@ -945,11 +1122,14 @@
             }
 
             const bestScore = Math.max(...scores.map(s => s.score));
-            const avgMAE = scores.reduce((s, x) => s + x.mae, 0) / scores.length;
+            const outlierCount = scores.filter(s => s.isOutlier).length;
+            const inlierScores = scores.filter(s => !s.isOutlier);
+            const avgMAE = inlierScores.length > 0 ? inlierScores.reduce((s, x) => s + x.mae, 0) / inlierScores.length : 0;
 
             let statsHTML = `<div class="stats-grid">
                 <div class="stat-box"><div class="value">${tc}</div><div class="label">Toplam Çizim</div></div>
                 <div class="stat-box"><div class="value">${Math.round(avgMAE * 10) / 10}px</div><div class="label">Ort. Sapma</div></div>
+                ${outlierCount > 0 ? `<div class="stat-box"><div class="value" style="color:#ef4444;">${outlierCount}</div><div class="label">Outlier</div></div>` : ''}
                 </div>`;
 
             if (refCal) {
@@ -959,16 +1139,18 @@
 
             const ss = [...scores].sort((a, b) => b.score - a.score);
             let uh = ss.map((s, rank) => {
-                const isBest = s.score === bestScore;
+                const isBest = s.score === bestScore && !s.isOutlier;
                 const medal = rank === 0 ? '🥇' : rank === 1 ? '🥈' : '🥉';
-                const sc = s.score >= 8 ? '#22c55e' : s.score >= 5 ? '#fbbf24' : '#ef4444';
+                const sc = s.isOutlier ? '#ef4444' : s.score >= 8 ? '#22c55e' : s.score >= 5 ? '#fbbf24' : '#ef4444';
                 const refCount = traceData.find(t => t.userId === s.userId)?.referencePoints.length || 0;
-                return `<div class="user-card ${isBest ? 'winner' : ''}"><div class="user-card-header">
-                    <span class="user-name">${isBest ? '<span class="crown">👑</span>' : ''}<span style="color:${s.color}">${medal} ${s.userName}</span></span>
+                const outlierBadge = s.isOutlier ? '<span style="background:#ef4444;color:#fff;font-size:0.65rem;padding:2px 6px;border-radius:4px;margin-left:8px;">⚠️ Outlier</span>' : '';
+                return `<div class="user-card ${isBest ? 'winner' : ''}" ${s.isOutlier ? 'style="opacity:0.7;border-left:3px solid #ef4444;"' : ''}><div class="user-card-header">
+                    <span class="user-name">${isBest ? '<span class="crown">👑</span>' : ''}<span style="color:${s.color}">${medal} ${s.userName}</span>${outlierBadge}</span>
                     <div style="text-align:right;"><div class="user-score" style="color:${sc}">${s.score}</div><div class="score-label">/ 10</div></div></div>
                     <div class="user-stats"><div>Ort. Sapma: <span class="stat-value">${s.mae} px</span></div>
                     <div>Maks. Sapma: <span class="stat-value">${s.maxDev} px</span></div>
-                    <div>Nokta: <span class="stat-value">${s.pointCount}</span> · Ref: <span class="stat-value">${refCount}</span></div></div></div>`;
+                    <div>Nokta: <span class="stat-value">${s.pointCount}</span> · Ref: <span class="stat-value">${refCount}</span></div>
+                    ${s.isOutlier ? '<div style="color:#ef4444;font-size:0.75rem;margin-top:4px;">Ortalama hesabından çıkarıldı</div>' : ''}</div></div>`;
             }).join('');
 
             panel.innerHTML = `<h2>Çapraz Doğrulama Analizi</h2>${statsHTML}<h2 style="margin-top:8px;">Kullanıcı Puanları</h2>${uh}`;

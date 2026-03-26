@@ -9,7 +9,7 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
         import {
-            getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc,
+            getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc, setDoc,
             query, where, orderBy, limit, increment, serverTimestamp
         }
             from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
@@ -32,7 +32,7 @@
         window.db = db;
         window.auth = auth;
         window.fbImports = {
-            collection, doc, getDoc, getDocs, addDoc, updateDoc,
+            collection, doc, getDoc, getDocs, addDoc, updateDoc, setDoc,
             query, where, orderBy, limit, increment, serverTimestamp
         };
     </script>
@@ -173,11 +173,30 @@
             position: relative;
         }
 
-        canvas {
+        .canvas-wrapper {
+            display: inline-block;
+            position: relative;
+        }
+
+        #termogramCanvas {
             cursor: crosshair;
             max-width: 100%;
             height: auto;
             touch-action: none;
+            display: block;
+        }
+
+        #overlayCanvas {
+            pointer-events: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .canvas-wrapper.drawing-active #termogramCanvas {
+            cursor: none;
         }
 
         .info-bar {
@@ -299,6 +318,55 @@
             background: #475569;
         }
 
+        /* ── Sıralama ── */
+        .leaderboard-section {
+            background: #111827;
+            border-top: 1px solid #1f2937;
+        }
+
+        .leaderboard-toggle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 24px;
+            cursor: pointer;
+            color: #e2e8f0;
+            font-weight: 600;
+            font-size: 0.9rem;
+            user-select: none;
+        }
+
+        .leaderboard-toggle:hover {
+            background: #1f2937;
+        }
+
+        .leaderboard-content {
+            padding: 0 24px 12px;
+        }
+
+        .lb-row {
+            display: flex;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.82rem;
+            color: #cbd5e1;
+            gap: 10px;
+        }
+
+        .lb-row:nth-child(odd) {
+            background: #1e293b;
+        }
+
+        .lb-row.lb-me {
+            background: #1e3a5f;
+            border: 1px solid #3b82f6;
+        }
+
+        .lb-rank { width: 30px; text-align: center; }
+        .lb-name { flex: 1; font-weight: 500; }
+        .lb-stat { font-size: 0.75rem; color: #94a3b8; }
+
         .overlay {
             display: none;
             position: fixed;
@@ -359,6 +427,130 @@
         .step.waiting {
             background: #1e293b;
             color: #64748b;
+        }
+
+        /* ── Tutorial ── */
+        .tutorial-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .tutorial-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 420px;
+            width: 90%;
+            text-align: center;
+            color: #e2e8f0;
+        }
+
+        .tutorial-icon {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+        }
+
+        .tutorial-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            color: #f8fafc;
+        }
+
+        .tutorial-card p {
+            font-size: 0.88rem;
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+
+        .tutorial-dots {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin: 20px 0 16px;
+        }
+
+        .tutorial-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #475569;
+        }
+
+        .tutorial-dot.active {
+            background: #3b82f6;
+        }
+
+        .tutorial-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .tutorial-buttons button {
+            padding: 8px 24px;
+            border-radius: 8px;
+            border: none;
+            font-size: 0.9rem;
+            cursor: pointer;
+            background: #3b82f6;
+            color: #fff;
+        }
+
+        /* ── XP Float Animation ── */
+        .xp-float {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fbbf24;
+            pointer-events: none;
+            z-index: 1500;
+            animation: xpFloatUp 1.5s ease-out forwards;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+
+        @keyframes xpFloatUp {
+            0% { opacity: 1; transform: translate(-50%, -50%); }
+            100% { opacity: 0; transform: translate(-50%, -150%); }
+        }
+
+        /* ── Progress Ring ── */
+        .progress-ring-container {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .progress-ring-container svg {
+            transform: rotate(-90deg);
+        }
+
+        /* ── Toolbar transition ── */
+        .toolbar {
+            transition: background-color 0.4s ease;
+        }
+
+        .toolbar.ref-mode-active {
+            background: #4a2c0a;
+        }
+
+        /* ── Login stats ── */
+        .login-stats {
+            margin-top: 20px;
+            font-size: 0.85rem;
+            color: #9ca3af;
+        }
+
+        .tutorial-buttons button:hover {
+            background: #2563eb;
         }
 
         @media (max-width: 768px) {
@@ -430,6 +622,7 @@
             <p>Tarihsel iklim verilerini dijitalleştirmeye yardım edin!</p>
             <input type="text" id="nameInput" placeholder="Adınızı girin..." maxlength="30">
             <button onclick="enterApp()">Başla</button>
+            <div class="login-stats" id="loginStats"></div>
         </div>
     </div>
 
@@ -437,7 +630,10 @@
     <div id="appScreen" style="display:none;">
         <div class="header">
             <h1>🌡️ Termogram Dijitalleştirici</h1>
-            <span id="userInfo"></span>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span id="userInfo"></span>
+                <span id="xpDisplay" style="color:#fbbf24;font-size:0.85rem;"></span>
+            </div>
         </div>
 
         <!-- Adım Göstergesi -->
@@ -448,15 +644,26 @@
         </div>
 
         <div class="toolbar">
-            <button onclick="getNewTermogram()">🎲 Yeni Termogram</button>
+            <select id="dataTypeFilter" onchange="getNewTermogram()" style="padding:6px 10px;border-radius:6px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;font-size:0.82rem;">
+                <option value="">Tümü</option>
+                <option value="termogram">🌡️ Termogram</option>
+                <option value="barograf">📊 Barograf</option>
+                <option value="termohigrograf">💧 Termohigrograf</option>
+                <option value="aktinograf">☀️ Aktinograf</option>
+            </select>
+            <button onclick="getNewTermogram()">🎲 Yeni</button>
             <button onclick="resetAll()">🔄 Sıfırla</button>
             <button onclick="enterRefMode()" id="refModeBtn" disabled>📌 Referans Noktası Ekle</button>
             <button onclick="submitTrace()" id="submitBtn" disabled>✅ Gönder</button>
+            <button onclick="showTutorial()" style="margin-left:auto;">❓ Nasıl Oynanır?</button>
             <span id="statusText">Yükleniyor...</span>
         </div>
 
         <div class="canvas-container">
-            <canvas id="termogramCanvas"></canvas>
+            <div class="canvas-wrapper">
+                <canvas id="termogramCanvas"></canvas>
+                <canvas id="overlayCanvas"></canvas>
+            </div>
         </div>
 
         <!-- Referans Noktaları Çubuğu -->
@@ -467,8 +674,18 @@
 
         <div class="info-bar">
             <span id="pointCount">Nokta: 0</span>
+            <span id="dataTypeLabel" style="color:#94a3b8;"></span>
             <span id="termogramLabel">—</span>
-            <span id="traceProgress">—</span>
+            <span id="traceProgress" class="progress-ring-container">—</span>
+        </div>
+
+        <!-- Sıralama -->
+        <div class="leaderboard-section">
+            <div class="leaderboard-toggle" onclick="toggleLeaderboard()">
+                <span>🏆 Sıralama</span>
+                <span id="leaderboardArrow">▼</span>
+            </div>
+            <div id="leaderboardContent" class="leaderboard-content" style="display:none;"></div>
         </div>
     </div>
 
@@ -490,12 +707,44 @@
         <span style="font-size:0.8rem; color:#a7f3d0;">Yeni termogram yükleniyor...</span>
     </div>
 
+    <!-- ══════════ TUTORIAL OVERLAY ══════════ -->
+    <div id="tutorialOverlay" class="tutorial-overlay" style="display:none;">
+        <div class="tutorial-card">
+            <div id="tutorialStep1" class="tutorial-step">
+                <div class="tutorial-icon">🖱️</div>
+                <h3>Mavi Çizgiyi Takip Edin</h3>
+                <p>Mouse'un sol tuşuna basılı tutarak termogramdaki mavi sıcaklık eğrisini soldan sağa takip edin.</p>
+            </div>
+            <div id="tutorialStep2" class="tutorial-step" style="display:none;">
+                <div class="tutorial-icon">📌</div>
+                <h3>Referans Noktaları Ekleyin</h3>
+                <p>Çizimi bitirdikten sonra, görselde sıcaklık değeri görebildiğiniz noktalara tıklayarak referans noktaları ekleyin. En az 2 nokta gerekli.</p>
+            </div>
+            <div id="tutorialStep3" class="tutorial-step" style="display:none;">
+                <div class="tutorial-icon">✅</div>
+                <h3>Gönderin ve Puan Kazanın</h3>
+                <p>Gönder butonuna basın! Her çizim size XP kazandırır. Ne kadar doğru çizerseniz o kadar çok puan alırsınız.</p>
+            </div>
+            <div class="tutorial-dots">
+                <span class="tutorial-dot active" id="dot0"></span>
+                <span class="tutorial-dot" id="dot1"></span>
+                <span class="tutorial-dot" id="dot2"></span>
+            </div>
+            <div class="tutorial-buttons">
+                <button id="tutorialBack" onclick="tutorialNav(-1)" style="display:none;">Geri</button>
+                <button id="tutorialNext" onclick="tutorialNav(1)">İleri</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ═══════════════════════════════════════
         // DEĞİŞKENLER
         // ═══════════════════════════════════════
         const canvas = document.getElementById('termogramCanvas');
         const ctx = canvas.getContext('2d');
+        const overlayCanvas = document.getElementById('overlayCanvas');
+        const overlayCtx = overlayCanvas.getContext('2d');
 
         let isDrawing = false;
         let points = [];
@@ -507,6 +756,52 @@
         // 'draw' = çizim modu (varsayılan)
         // 'ref'  = referans noktası ekleme modu
         let currentMode = 'draw';
+
+        const DATA_TYPE_ICONS = {
+            termogram: '🌡️ Termogram',
+            barograf: '📊 Barograf',
+            termohigrograf: '💧 Termohigrograf',
+            aktinograf: '☀️ Aktinograf'
+        };
+
+        // ── XP & Level sistemi ──
+        const LEVEL_THRESHOLDS = [0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 5000];
+        let currentUserData = null; // Firestore user document data
+
+        function getLevel(totalXP) {
+            let level = 1;
+            for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
+                if (totalXP >= LEVEL_THRESHOLDS[i]) { level = i + 1; break; }
+            }
+            return level;
+        }
+
+        function updateXPDisplay() {
+            if (!currentUserData) return;
+            const level = getLevel(currentUserData.totalXP);
+            const streak = currentUserData.streakDays || 1;
+            document.getElementById('xpDisplay').textContent =
+                `⭐ Seviye ${level} • ${currentUserData.totalXP} XP • 🔥 ${streak} gün`;
+        }
+
+        function showXPFloat(xp) {
+            const el = document.createElement('div');
+            el.className = 'xp-float';
+            el.textContent = `+${xp} XP`;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 1600);
+        }
+
+        function updateTraceProgressRing(count, max) {
+            const pct = Math.min(count / max, 1);
+            const r = 14, circ = 2 * Math.PI * r;
+            const offset = circ * (1 - pct);
+            const color = pct >= 1 ? '#22c55e' : '#3b82f6';
+            document.getElementById('traceProgress').innerHTML =
+                `<svg width="36" height="36"><circle cx="18" cy="18" r="${r}" fill="none" stroke="#334155" stroke-width="3"/>` +
+                `<circle cx="18" cy="18" r="${r}" fill="none" stroke="${color}" stroke-width="3" stroke-dasharray="${circ}" stroke-dashoffset="${offset}" stroke-linecap="round"/></svg>` +
+                `<span>${count}/${max}</span>`;
+        }
 
         // ── Referans noktaları ──
         // Her eleman: { x: piksel, y: piksel, temperature: derece }
@@ -524,6 +819,8 @@
                     currentImage = img;
                     canvas.width = img.width;
                     canvas.height = img.height;
+                    overlayCanvas.width = img.width;
+                    overlayCanvas.height = img.height;
                     ctx.drawImage(img, 0, 0);
                     points = [];
                     refPoints = [];
@@ -534,6 +831,7 @@
                     document.getElementById('submitBtn').disabled = true;
                     document.getElementById('refModeBtn').disabled = true;
                     document.getElementById('refModeBtn').classList.remove('active-mode');
+                    document.querySelector('.toolbar').classList.remove('ref-mode-active');
                     resolve();
                 };
                 img.onerror = () => reject(new Error('Görsel yüklenemedi'));
@@ -553,6 +851,17 @@
         function continueDrawing(x, y) {
             if (!isDrawing || currentMode !== 'draw') return;
             const pt = canvasPointFromXY(x, y);
+            if (points.length > 0) {
+                const prev = points[points.length - 1];
+                // Right-only constraint: ignore points that move left
+                if (pt.x < prev.x) return;
+                // Y-jump cap: limit vertical jumps to 30px
+                const maxYJump = 30;
+                const yDiff = pt.y - prev.y;
+                if (Math.abs(yDiff) > maxYJump) {
+                    pt.y = prev.y + Math.sign(yDiff) * maxYJump;
+                }
+            }
             points.push(pt);
             if (points.length > 1) {
                 const prev = points[points.length - 2];
@@ -588,17 +897,95 @@
             };
         }
 
+        // ── Crosshair overlay ──
+        function drawCrosshair(clientX, clientY) {
+            if (!currentImage) return;
+            const pt = canvasPointFromXY(clientX, clientY);
+            const oc = overlayCtx;
+            const w = overlayCanvas.width, h = overlayCanvas.height;
+            oc.clearRect(0, 0, w, h);
+
+            // Vertical line
+            oc.beginPath();
+            oc.moveTo(pt.x, 0);
+            oc.lineTo(pt.x, h);
+            oc.strokeStyle = 'rgba(255,255,255,0.3)';
+            oc.lineWidth = 1;
+            oc.stroke();
+
+            // Horizontal line
+            oc.beginPath();
+            oc.moveTo(0, pt.y);
+            oc.lineTo(w, pt.y);
+            oc.strokeStyle = 'rgba(255,255,255,0.3)';
+            oc.lineWidth = 1;
+            oc.stroke();
+
+            // Center circle
+            oc.beginPath();
+            oc.arc(pt.x, pt.y, 8, 0, Math.PI * 2);
+            oc.strokeStyle = '#FF0000';
+            oc.lineWidth = 2;
+            oc.stroke();
+
+            // Center dot
+            oc.beginPath();
+            oc.arc(pt.x, pt.y, 2, 0, Math.PI * 2);
+            oc.fillStyle = '#FF0000';
+            oc.fill();
+
+            // Temperature tooltip
+            if (currentTermogram) {
+                const t = currentTermogram;
+                const gridTop = t.gridTop || 0;
+                const gridBottom = t.gridBottom || h;
+                const tempMin = t.tempMin ?? -10;
+                const tempMax = t.tempMax ?? 40;
+                const ratioY = (pt.y - gridTop) / (gridBottom - gridTop);
+                const temp = tempMax - ratioY * (tempMax - tempMin);
+                const tempStr = temp.toFixed(1) + '°C';
+
+                oc.font = 'bold 14px monospace';
+                const textWidth = oc.measureText(tempStr).width;
+                let tx = pt.x + 20;
+                let ty = pt.y - 20;
+                // Keep tooltip on screen
+                if (tx + textWidth + 8 > w) tx = pt.x - textWidth - 28;
+                if (ty - 18 < 0) ty = pt.y + 30;
+
+                oc.fillStyle = 'rgba(0,0,0,0.75)';
+                oc.fillRect(tx - 4, ty - 15, textWidth + 8, 20);
+                oc.fillStyle = '#ffffff';
+                oc.fillText(tempStr, tx, ty);
+            }
+        }
+
+        function clearCrosshair() {
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        }
+
         // ── Mouse olayları ──
         canvas.addEventListener('mousedown', (e) => {
             if (currentMode === 'draw') {
+                canvas.parentElement.classList.add('drawing-active');
                 startDrawing(e.clientX, e.clientY);
             } else if (currentMode === 'ref') {
                 handleRefClick(e.clientX, e.clientY);
             }
         });
-        canvas.addEventListener('mousemove', (e) => continueDrawing(e.clientX, e.clientY));
-        canvas.addEventListener('mouseup', () => stopDrawing());
-        canvas.addEventListener('mouseleave', () => { if (isDrawing) stopDrawing(); });
+        canvas.addEventListener('mousemove', (e) => {
+            drawCrosshair(e.clientX, e.clientY);
+            continueDrawing(e.clientX, e.clientY);
+        });
+        canvas.addEventListener('mouseup', () => {
+            canvas.parentElement.classList.remove('drawing-active');
+            stopDrawing();
+        });
+        canvas.addEventListener('mouseleave', () => {
+            clearCrosshair();
+            canvas.parentElement.classList.remove('drawing-active');
+            if (isDrawing) stopDrawing();
+        });
 
         // ── Touch olayları ──
         canvas.addEventListener('touchstart', (e) => {
@@ -613,9 +1000,14 @@
         canvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
             const touch = e.touches[0];
+            drawCrosshair(touch.clientX, touch.clientY);
             continueDrawing(touch.clientX, touch.clientY);
         });
-        canvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); });
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            clearCrosshair();
+            stopDrawing();
+        });
 
         // ═══════════════════════════════════════
         // REFERANS NOKTASI MODU
@@ -627,6 +1019,7 @@
             currentMode = 'ref';
             canvas.style.cursor = 'crosshair';
             document.getElementById('refModeBtn').classList.add('active-mode');
+            document.querySelector('.toolbar').classList.add('ref-mode-active');
             document.getElementById('statusText').textContent =
                 '📌 Görselde sıcaklık değeri gördüğünüz bir noktaya tıklayın';
             updateStepIndicator();
@@ -801,18 +1194,21 @@
 
         function resetAll() {
             if (currentImage) {
+                isDrawing = false;  // Fix E: clear stale drawing state
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(currentImage, 0, 0);
                 points = [];
                 refPoints = [];
                 currentMode = 'draw';
                 canvas.style.cursor = 'crosshair';
+                canvas.parentElement.classList.remove('drawing-active');
                 updatePointCount();
                 updateRefPointsUI();
                 updateStepIndicator();
                 document.getElementById('submitBtn').disabled = true;
                 document.getElementById('refModeBtn').disabled = true;
                 document.getElementById('refModeBtn').classList.remove('active-mode');
+                document.querySelector('.toolbar').classList.remove('ref-mode-active');
                 document.getElementById('statusText').textContent =
                     'Mavi çizgiyi parmağınızla veya mouse ile takip edin';
             }
@@ -836,6 +1232,93 @@
             });
         }
 
+        // ═══════════════════════════════════════
+        // SIRALAMA (LEADERBOARD)
+        // ═══════════════════════════════════════
+
+        function toggleLeaderboard() {
+            const content = document.getElementById('leaderboardContent');
+            const arrow = document.getElementById('leaderboardArrow');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.textContent = '▲';
+                loadLeaderboard();
+            } else {
+                content.style.display = 'none';
+                arrow.textContent = '▼';
+            }
+        }
+
+        async function loadLeaderboard() {
+            const container = document.getElementById('leaderboardContent');
+            container.innerHTML = '<div style="color:#94a3b8;padding:8px;font-size:0.8rem;">Yükleniyor...</div>';
+
+            try {
+                await waitForFirebase();
+                const { collection, getDocs, query, orderBy, limit } = window.fbImports;
+                const q = query(collection(window.db, 'users'), orderBy('totalXP', 'desc'), limit(10));
+                const snapshot = await getDocs(q);
+
+                if (snapshot.empty) {
+                    container.innerHTML = '<div style="color:#94a3b8;padding:8px;font-size:0.8rem;">Henüz sıralama yok.</div>';
+                    return;
+                }
+
+                let html = '';
+                let rank = 0;
+                snapshot.forEach(docSnap => {
+                    rank++;
+                    const d = docSnap.data();
+                    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
+                    const isMe = currentUser && docSnap.id === currentUser.uid;
+                    const streak = d.streakDays || 0;
+                    const level = getLevel(d.totalXP || 0);
+                    html += `<div class="lb-row ${isMe ? 'lb-me' : ''}">
+                        <span class="lb-rank">${medal}</span>
+                        <span class="lb-name">${d.userName || 'Anonim'}${isMe ? ' (sen)' : ''}</span>
+                        <span class="lb-stat">Sv.${level}</span>
+                        <span class="lb-stat">${d.totalXP || 0} XP</span>
+                        <span class="lb-stat">🔥${streak}</span>
+                    </div>`;
+                });
+                container.innerHTML = html;
+            } catch (err) {
+                console.error('Leaderboard hatası:', err);
+                container.innerHTML = '<div style="color:#ef4444;padding:8px;font-size:0.8rem;">Yüklenemedi.</div>';
+            }
+        }
+
+        // ═══════════════════════════════════════
+        // TUTORIAL
+        // ═══════════════════════════════════════
+        let tutorialStep = 0;
+
+        function showTutorial() {
+            tutorialStep = 0;
+            updateTutorialStep();
+            document.getElementById('tutorialOverlay').style.display = 'flex';
+        }
+
+        function updateTutorialStep() {
+            for (let i = 0; i < 3; i++) {
+                document.getElementById(`tutorialStep${i + 1}`).style.display = i === tutorialStep ? 'block' : 'none';
+                document.getElementById(`dot${i}`).className = 'tutorial-dot' + (i === tutorialStep ? ' active' : '');
+            }
+            document.getElementById('tutorialBack').style.display = tutorialStep > 0 ? 'inline-block' : 'none';
+            document.getElementById('tutorialNext').textContent = tutorialStep === 2 ? 'Başla!' : 'İleri';
+        }
+
+        function tutorialNav(dir) {
+            tutorialStep += dir;
+            if (tutorialStep > 2) {
+                document.getElementById('tutorialOverlay').style.display = 'none';
+                localStorage.setItem('tutorialCompleted', 'true');
+                return;
+            }
+            if (tutorialStep < 0) tutorialStep = 0;
+            updateTutorialStep();
+        }
+
         async function enterApp() {
             const name = document.getElementById('nameInput').value.trim();
             if (!name) { alert('Lütfen bir isim girin'); return; }
@@ -848,9 +1331,56 @@
                 const result = await signInAnonymously(window.auth);
                 currentUser = { uid: result.user.uid, displayName: name };
 
+                // Create or load user document
+                const { doc, getDoc, setDoc } = window.fbImports;
+                const userRef = doc(window.db, 'users', currentUser.uid);
+                const userSnap = await getDoc(userRef);
+                if (userSnap.exists()) {
+                    currentUserData = userSnap.data();
+                    const updates = {};
+                    // Update userName if changed
+                    if (currentUserData.userName !== name) {
+                        updates.userName = name;
+                        currentUserData.userName = name;
+                    }
+                    // Streak hesapla
+                    const today = new Date().toISOString().split('T')[0];
+                    const lastActive = currentUserData.lastActiveDate || '';
+                    if (lastActive !== today) {
+                        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+                        if (lastActive === yesterday) {
+                            currentUserData.streakDays = (currentUserData.streakDays || 1) + 1;
+                        } else {
+                            currentUserData.streakDays = 1;
+                        }
+                        currentUserData.lastActiveDate = today;
+                        updates.streakDays = currentUserData.streakDays;
+                        updates.lastActiveDate = today;
+                    }
+                    if (Object.keys(updates).length > 0) {
+                        await setDoc(userRef, updates, { merge: true });
+                    }
+                } else {
+                    currentUserData = {
+                        userName: name,
+                        totalXP: 0,
+                        level: 1,
+                        tracesCompleted: 0,
+                        lastActiveDate: new Date().toISOString().split('T')[0],
+                        streakDays: 1
+                    };
+                    await setDoc(userRef, currentUserData);
+                }
+
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('appScreen').style.display = 'block';
                 document.getElementById('userInfo').textContent = 'Merhaba, ' + name;
+                updateXPDisplay();
+
+                // İlk kullanım tutorial'ı
+                if (!localStorage.getItem('tutorialCompleted')) {
+                    showTutorial();
+                }
 
                 await getNewTermogram();
             } catch (err) {
@@ -863,6 +1393,21 @@
             if (e.key === 'Enter') enterApp();
         });
 
+        // Login ekranı istatistikleri
+        (async function loadLoginStats() {
+            try {
+                await waitForFirebase();
+                const { collection, getDocs, query, where } = window.fbImports;
+                const q = query(collection(window.db, 'termograms'), where('status', '==', 'completed'));
+                const snap = await getDocs(q);
+                const count = snap.size;
+                if (count > 0) {
+                    document.getElementById('loginStats').textContent =
+                        `🌡️ Şimdiye kadar ${count} termogram dijitalleştirildi`;
+                }
+            } catch (e) { /* silent */ }
+        })();
+
         async function getNewTermogram() {
             await waitForFirebase();
             const { collection, getDocs, query, where } = window.fbImports;
@@ -872,11 +1417,14 @@
             document.getElementById('refModeBtn').disabled = true;
 
             try {
-                const q = query(collection(window.db, 'termograms'), where('status', '==', 'available'));
+                const selectedType = document.getElementById('dataTypeFilter').value;
+                const constraints = [where('status', '==', 'available')];
+                if (selectedType) constraints.push(where('dataType', '==', selectedType));
+                const q = query(collection(window.db, 'termograms'), ...constraints);
                 const snapshot = await getDocs(q);
 
                 if (snapshot.empty) {
-                    document.getElementById('statusText').textContent = 'Tüm termogramlar tamamlandı! 🎉';
+                    document.getElementById('statusText').textContent = 'Bu tipte mevcut kayıt yok.';
                     return;
                 }
 
@@ -886,7 +1434,10 @@
                 const available = snapshot.docs.filter(d => !alreadyTraced.has(d.id));
 
                 if (available.length === 0) {
-                    document.getElementById('statusText').textContent = 'Mevcut tüm termogramları çizdiniz. Tebrikler! 👏';
+                    // Fix C: hint to change filter when a type filter is active
+                    const hint = selectedType ? ' Filtre değiştirmeyi deneyin.' : '';
+                    document.getElementById('statusText').textContent =
+                        'Mevcut tüm termogramları çizdiniz. Tebrikler! 👏' + hint;
                     return;
                 }
 
@@ -896,7 +1447,8 @@
                 await loadTermogram(currentTermogram.imageFile);
 
                 document.getElementById('termogramLabel').textContent = currentTermogram.label || currentTermogram.id;
-                document.getElementById('traceProgress').textContent = 'Çizim: ' + currentTermogram.traceCount + '/' + currentTermogram.maxTraces;
+                document.getElementById('dataTypeLabel').textContent = DATA_TYPE_ICONS[currentTermogram.dataType] || '';
+                updateTraceProgressRing(currentTermogram.traceCount, currentTermogram.maxTraces);
                 document.getElementById('statusText').textContent = 'Adım 1: Mavi çizgiyi mouse ile soldan sağa takip edin';
                 updateStepIndicator();
 
@@ -909,13 +1461,13 @@
         async function submitTrace() {
             if (!currentTermogram || points.length < 50 || refPoints.length < 2) return;
 
-            await waitForFirebase();
-            const { collection, addDoc, doc, updateDoc, increment, serverTimestamp } = window.fbImports;
-
             document.getElementById('submitBtn').disabled = true;
             document.getElementById('statusText').textContent = 'Kaydediliyor...';
 
             try {
+                // Fix A: waitForFirebase inside try so init failures are caught
+                await waitForFirebase();
+                const { collection, addDoc, doc, updateDoc, increment, serverTimestamp } = window.fbImports;
                 const cal = currentTermogram;
 
                 const calibratedData = points.map(p => {
@@ -931,7 +1483,14 @@
                     };
                 });
 
-                // Firebase'e kaydet — referans noktalarını da dahil et
+                // XP hesapla
+                const baseXP = 50;
+                const refBonus = refPoints.length >= 2 ? 20 : 0;
+                const streakDays = currentUserData?.streakDays || 1;
+                const streakMultiplier = Math.min(1 + streakDays * 0.1, 2.0);
+                const xpEarned = Math.round((baseXP + refBonus) * streakMultiplier);
+
+                // Firebase'e kaydet — referans noktalarını ve XP'yi dahil et
                 await addDoc(collection(window.db, 'traces'), {
                     termogramId: currentTermogram.id,
                     userId: currentUser.uid,
@@ -939,12 +1498,12 @@
                     pointCount: points.length,
                     rawPoints: points.map(p => ({ x: p.x, y: p.y })),
                     calibratedData: calibratedData,
-                    // YENİ: Kullanıcının işaretlediği referans noktaları
                     referencePoints: refPoints.map(r => ({
                         x: r.x,
                         y: r.y,
                         temperature: r.temperature
                     })),
+                    xpEarned: xpEarned,
                     createdAt: serverTimestamp()
                 });
 
@@ -954,12 +1513,43 @@
                 if (newCount >= currentTermogram.maxTraces) updateData.status = 'completed';
                 await updateDoc(termRef, updateData);
 
+                // Kullanıcı dokümanını güncelle
+                const userRef = doc(window.db, 'users', currentUser.uid);
+                await updateDoc(userRef, {
+                    totalXP: increment(xpEarned),
+                    tracesCompleted: increment(1)
+                });
+
+                // Lokal state güncelle
+                // Fix B: null-safe XP reads so level-up popup always works correctly
+                const oldLevel = getLevel(currentUserData?.totalXP ?? 0);
+                if (currentUserData) {
+                    currentUserData.totalXP = (currentUserData.totalXP ?? 0) + xpEarned;
+                    currentUserData.tracesCompleted = (currentUserData.tracesCompleted ?? 0) + 1;
+                }
+                const newLevel = getLevel(currentUserData?.totalXP ?? 0);
+                updateXPDisplay();
+
                 const popup = document.getElementById('successPopup');
+                const streakText = streakMultiplier > 1 ? ` (x${streakMultiplier.toFixed(1)} streak bonus!)` : '';
+                if (newLevel > oldLevel) {
+                    popup.innerHTML = `🎉 Seviye ${newLevel}'e ulaştınız!<br>
+                        <span style="font-size:0.9rem;color:#fbbf24;">+${xpEarned} XP${streakText}</span>`;
+                } else {
+                    popup.innerHTML = `✅ Kaydedildi! Teşekkürler!<br>
+                        <span style="font-size:0.9rem;color:#a7f3d0;">+${xpEarned} XP${streakText}</span><br>
+                        <span style="font-size:0.8rem;color:#94a3b8;">Yeni termogram yükleniyor...</span>`;
+                }
                 popup.style.display = 'block';
+                showXPFloat(xpEarned);
                 setTimeout(() => {
                     popup.style.display = 'none';
                     getNewTermogram();
-                }, 2000);
+                    // Sıralama açıksa güncelle
+                    if (document.getElementById('leaderboardContent').style.display !== 'none') {
+                        loadLeaderboard();
+                    }
+                }, 2500);
 
             } catch (err) {
                 console.error('Kaydetme hatası:', err);
