@@ -971,6 +971,8 @@
         function stopDrawing() {
             if (currentMode !== 'draw') return;
             isDrawing = false;
+            mouseDrawToggled = false;
+            canvas.parentElement.classList.remove('drawing-active');
             if (points.length >= 50) {
                 // Çizim tamamlandı, referans modu butonunu aktifleştir
                 document.getElementById('refModeBtn').disabled = false;
@@ -1134,30 +1136,44 @@
         }
 
         // ── Mouse olayları ──
+        // Trackpad/mouse için toggle modu:
+        // İlk tıklama çizimi başlatır, ikinci tıklama durdurur.
+        // Parmak trackpad'den çıksa bile çizim devam eder, geri döndüğünde kaldığı yerden sürer.
+        let mouseDrawToggled = false;
+
         canvas.addEventListener('mousedown', (e) => {
             if (currentMode === 'draw') {
-                canvas.parentElement.classList.add('drawing-active');
-                startDrawing(e.clientX, e.clientY);
+                if (!mouseDrawToggled) {
+                    mouseDrawToggled = true;
+                    canvas.parentElement.classList.add('drawing-active');
+                    startDrawing(e.clientX, e.clientY);
+                } else {
+                    mouseDrawToggled = false;
+                    canvas.parentElement.classList.remove('drawing-active');
+                    stopDrawing();
+                }
             } else if (currentMode === 'ref') {
                 previewRefPoint(e.clientX, e.clientY);
             }
         });
         canvas.addEventListener('mousemove', (e) => {
             drawCrosshair(e.clientX, e.clientY);
-            continueDrawing(e.clientX, e.clientY);
+            if (mouseDrawToggled) continueDrawing(e.clientX, e.clientY);
         });
         canvas.addEventListener('mouseup', (e) => {
-            canvas.parentElement.classList.remove('drawing-active');
             if (currentMode === 'ref') {
+                canvas.parentElement.classList.remove('drawing-active');
                 openRefPopup();
-            } else {
-                stopDrawing();
             }
+            // Draw modunda mouseup çizimi durdurmaz — ikinci tıklama durdurur
         });
         canvas.addEventListener('mouseleave', () => {
             clearCrosshair();
-            canvas.parentElement.classList.remove('drawing-active');
-            if (isDrawing) stopDrawing();
+            // Toggle aktifse çizim durmaz, canvas'a dönünce devam eder
+            if (!mouseDrawToggled) canvas.parentElement.classList.remove('drawing-active');
+        });
+        canvas.addEventListener('mouseenter', () => {
+            if (mouseDrawToggled) canvas.parentElement.classList.add('drawing-active');
         });
 
         // ── Touch olayları ──
@@ -1406,7 +1422,8 @@
 
         function resetAll() {
             if (currentImage) {
-                isDrawing = false;  // Fix E: clear stale drawing state
+                isDrawing = false;
+                mouseDrawToggled = false;  // toggle modunu sıfırla
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(currentImage, 0, 0);
                 points = [];
@@ -1812,7 +1829,7 @@
                 document.getElementById('termogramLabel').textContent = currentTermogram.label || currentTermogram.id;
                 document.getElementById('dataTypeLabel').textContent = DATA_TYPE_ICONS[currentTermogram.dataType] || '';
                 updateTraceProgressRing(currentTermogram.traceCount, currentTermogram.maxTraces);
-                document.getElementById('statusText').textContent = 'Adım 1: Mavi çizgiyi mouse ile soldan sağa takip edin';
+                document.getElementById('statusText').textContent = 'Adım 1: Tıkla → çizim başlar, tekrar tıkla → durur (parmak veya mouse)';
                 updateStepIndicator();
 
             } catch (err) {
