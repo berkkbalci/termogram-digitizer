@@ -544,18 +544,17 @@
             const avgY = interpolateY(currentAveragePoints, px);
             if (avgY === null) { tooltip.style.display = 'none'; return; }
 
-            // Sıcaklık hesapla
+            // Değer hesapla (her veri türüne göre doğru birim)
+            const unit = getValueUnit(currentTermogramData?.dataType);
             let tempText = '';
             if (currentRefCalibration) {
-                // Referans noktalarından hesaplanan kalibrasyon ile
-                const temp = pixelYToTemp(avgY, currentRefCalibration);
-                tempText = `<div class="temp-value">${temp.toFixed(1)}°C</div>`;
+                const val = pixelYToTemp(avgY, currentRefCalibration);
+                tempText = `<div class="temp-value">${val.toFixed(1)}${unit}</div>`;
             } else if (currentTermogramData) {
-                // Fallback: Firestore'daki grid kalibrasyonu ile
                 const cal = currentTermogramData;
                 const ratio = (avgY - cal.gridTop) / (cal.gridBottom - cal.gridTop);
-                const temp = cal.tempMax - ratio * (cal.tempMax - cal.tempMin);
-                tempText = `<div class="temp-value">${temp.toFixed(1)}°C</div>`;
+                const val = cal.tempMax - ratio * (cal.tempMax - cal.tempMin);
+                tempText = `<div class="temp-value">${val.toFixed(1)}${unit}</div>`;
             }
 
             // Dikey çizgi çiz (crosshair)
@@ -617,7 +616,13 @@
 
         // Tüm trace'lerdeki referans noktalarını topla ve lineer regresyon yap
         // y_piksel → sıcaklık dönüşümü için: temp = a * y_piksel + b
-        function buildRefCalibration(traces) {
+        // Her veri türü için birim etiketi
+        function getValueUnit(dataType) {
+            const units = { termogram: '°C', barograf: 'mbar', aktinograf: 'W/m²', nem: '%' };
+            return units[dataType] || '';
+        }
+
+        function buildRefCalibration(traces, termogram) {
             const allRefPoints = [];
             for (const trace of traces) {
                 if (trace.referencePoints && trace.referencePoints.length > 0) {
@@ -643,6 +648,17 @@
 
             const a = (n * sumYT - sumY * sumT) / denom;
             const b = (sumT - a * sumY) / n;
+
+            // Sağlamlık kontrolü: grid orta noktasındaki tahmin,
+            // beklenen değer aralığının 2 katı dışındaysa kalibrasyon geçersizdir.
+            if (termogram) {
+                const midY = (termogram.gridTop + termogram.gridBottom) / 2;
+                const predictedMid = a * midY + b;
+                const range = Math.abs(termogram.tempMax - termogram.tempMin);
+                const lo = Math.min(termogram.tempMin, termogram.tempMax) - range;
+                const hi = Math.max(termogram.tempMin, termogram.tempMax) + range;
+                if (predictedMid < lo || predictedMid > hi) return null;
+            }
 
             return { a, b, pointCount: n };
         }
@@ -674,7 +690,7 @@
                 ctx.stroke();
 
                 // Etiket
-                const label = ref.temperature + '°C';
+                const label = ref.temperature + getValueUnit(currentTermogramData?.dataType);
                 ctx.font = 'bold 14px system-ui';
                 ctx.fillStyle = '#fbbf24';
                 ctx.strokeStyle = '#000';
@@ -874,7 +890,7 @@
             }
 
             // Referans noktalarından kalibrasyon oluştur
-            currentRefCalibration = buildRefCalibration(traces);
+            currentRefCalibration = buildRefCalibration(traces, termogram);
 
             // Referans noktalarını canvas'a çiz
             drawAllRefPoints();
