@@ -944,6 +944,9 @@
                 const prev = points[points.length - 1];
                 // Right-only constraint: ignore points that move left
                 if (pt.x < prev.x) return;
+                // Minimum mesafe: 4px'den yakın nokta ekleme (dizi şişmesini önler)
+                const dx = pt.x - prev.x, dy = pt.y - prev.y;
+                if (dx * dx + dy * dy < 16) return;
                 // Y-jump cap: limit vertical jumps to 30px
                 const maxYJump = 30;
                 const yDiff = pt.y - prev.y;
@@ -988,16 +991,24 @@
 
         function getNearestDrawnPoint(targetPoint) {
             if (!points || points.length === 0) return null;
-            let nearest = points[0];
+            // Binary search: points X'e göre sıralı (sağa-only constraint)
+            let lo = 0, hi = points.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (points[mid].x < targetPoint.x) lo = mid + 1;
+                else hi = mid;
+            }
+            // Bulunan indeks etrafında küçük bir pencere tara (O(n) yerine O(log n + k))
+            const WINDOW = 40;
+            const start = Math.max(0, lo - WINDOW);
+            const end   = Math.min(points.length - 1, lo + WINDOW);
+            let nearest = points[lo];
             let minDistSq = Infinity;
-            for (const p of points) {
-                const dx = p.x - targetPoint.x;
-                const dy = p.y - targetPoint.y;
+            for (let i = start; i <= end; i++) {
+                const dx = points[i].x - targetPoint.x;
+                const dy = points[i].y - targetPoint.y;
                 const d2 = dx * dx + dy * dy;
-                if (d2 < minDistSq) {
-                    minDistSq = d2;
-                    nearest = p;
-                }
+                if (d2 < minDistSq) { minDistSq = d2; nearest = points[i]; }
             }
             return { x: nearest.x, y: nearest.y, distance: Math.sqrt(minDistSq) };
         }
@@ -1081,8 +1092,12 @@
         const MAG_SIZE     = 140;   // px (CSS ile eşleşmeli)
         const MAG_ZOOM     = 0.28;   // büyütme katsayısı
         const MAG_OFFSET_Y = 170;   // parmağın kaç px üstünde durur
+        let   _magRafId    = null;  // throttle için
 
         function showMagnifier(clientX, clientY) {
+            if (_magRafId) return;           // önceki frame henüz işlenmedi, atla
+            _magRafId = requestAnimationFrame(() => {
+            _magRafId = null;
             // Ekrana yerleştir — parmağın üstünde ortala
             let left = clientX - MAG_SIZE / 2;
             let top  = clientY - MAG_OFFSET_Y;
@@ -1110,9 +1125,11 @@
             // Önce ana canvas (grafik), sonra overlay (çizgi + crosshair)
             magCtx.drawImage(canvas,        srcX, srcY, srcW, srcH, 0, 0, MAG_SIZE, MAG_SIZE);
             magCtx.drawImage(overlayCanvas, srcX, srcY, srcW, srcH, 0, 0, MAG_SIZE, MAG_SIZE);
+            }); // requestAnimationFrame
         }
 
         function hideMagnifier() {
+            if (_magRafId) { cancelAnimationFrame(_magRafId); _magRafId = null; }
             magnifier.style.display = 'none';
         }
 
