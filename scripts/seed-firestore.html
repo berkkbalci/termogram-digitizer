@@ -95,15 +95,16 @@
 
         // ── Termogramlar + Diğer Veri Tipleri ──
         const TERMOGRAMS = [
-            // Demo set: 1 record per data type — maxTraces: 50 (demo için 30+ kişi)
+            // Tüm grid değerleri görsel piksel analizi ile ölçüldü (2026-03-26)
             {
                 id: "1997_AGUSTOS-21",
                 imageFile: "images/termogram/1997_AGUSTOS-21.png",
                 label: "1997 Ağustos 21",
                 dataType: "termogram",
+                // 7 günlük şerit (3453×1204 px) — Y ekseni: üst=40°C, alt=-10°C
                 startDate: "1997-08-21T00:00:00", endDate: "1997-08-28T00:00:00",
                 tempMin: -10, tempMax: 40,
-                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
+                gridLeft: 115, gridRight: 3415, gridTop: 55, gridBottom: 1150,
                 traceCount: 0, maxTraces: 50, status: "available"
             },
             {
@@ -111,9 +112,11 @@
                 imageFile: "images/barograf/2003_EKIM-08.png",
                 label: "Barograf 2003 Ekim 08",
                 dataType: "barograf",
-                startDate: "2003-10-08T00:00:00", endDate: "2003-10-15T00:00:00",
+                // 25 saatlik şerit: 08 Eki 06:00 → 09 Eki 07:00 (5019×2046 px)
+                // Y ekseni: üst=1050 hPa, alt=950 hPa (Chart 21a mb)
+                startDate: "2003-10-08T06:00:00", endDate: "2003-10-09T07:00:00",
                 tempMin: 950, tempMax: 1050,
-                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
+                gridLeft: 100, gridRight: 5000, gridTop: 60, gridBottom: 1950,
                 traceCount: 0, maxTraces: 50, status: "available"
             },
             {
@@ -121,9 +124,11 @@
                 imageFile: "images/aktinograf/1981_EKIM-25.png",
                 label: "Aktinograf 1981 Ekim 25",
                 dataType: "aktinograf",
-                startDate: "1981-10-25T00:00:00", endDate: "1981-11-01T00:00:00",
-                tempMin: 0, tempMax: 1200,
-                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
+                // 25 saatlik şerit: 24 Eki 20:00 → 25 Eki 21:00 (3567×1077 px)
+                // Y ekseni: üst=1400 W/m², alt=0 (≈2.0 cal/cm²·min)
+                startDate: "1981-10-24T20:00:00", endDate: "1981-10-25T21:00:00",
+                tempMin: 0, tempMax: 1400,
+                gridLeft: 115, gridRight: 3551, gridTop: 40, gridBottom: 960,
                 traceCount: 0, maxTraces: 50, status: "available"
             },
             {
@@ -131,9 +136,11 @@
                 imageFile: "images/nem/2020_MAYIS-10.png",
                 label: "Nem 2020 Mayıs 10",
                 dataType: "nem",
-                startDate: "2020-05-10T00:00:00", endDate: "2020-05-17T00:00:00",
-                tempMin: 0, tempMax: 100,
-                gridLeft: 120, gridRight: 3500, gridTop: 50, gridBottom: 1000,
+                // 24 saatlik şerit: 10 May 08:00 → 11 May 08:00 (3534×1119 px)
+                // Y ekseni TERS: üst=0%, alt=100% — tempMax/Min ters girildi
+                startDate: "2020-05-10T08:00:00", endDate: "2020-05-11T08:00:00",
+                tempMin: 100, tempMax: 0,
+                gridLeft: 76, gridRight: 3485, gridTop: 55, gridBottom: 1082,
                 traceCount: 0, maxTraces: 50, status: "available"
             }
         ];
