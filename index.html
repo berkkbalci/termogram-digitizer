@@ -1122,16 +1122,20 @@
                 canvas.parentElement.classList.add('drawing-active');
                 startDrawing(e.clientX, e.clientY);
             } else if (currentMode === 'ref') {
-                handleRefClick(e.clientX, e.clientY);
+                previewRefPoint(e.clientX, e.clientY);
             }
         });
         canvas.addEventListener('mousemove', (e) => {
             drawCrosshair(e.clientX, e.clientY);
             continueDrawing(e.clientX, e.clientY);
         });
-        canvas.addEventListener('mouseup', () => {
+        canvas.addEventListener('mouseup', (e) => {
             canvas.parentElement.classList.remove('drawing-active');
-            stopDrawing();
+            if (currentMode === 'ref') {
+                openRefPopup();
+            } else {
+                stopDrawing();
+            }
         });
         canvas.addEventListener('mouseleave', () => {
             clearCrosshair();
@@ -1147,21 +1151,29 @@
             if (currentMode === 'draw') {
                 startDrawing(touch.clientX, touch.clientY);
             } else if (currentMode === 'ref') {
-                handleRefClick(touch.clientX, touch.clientY);
+                previewRefPoint(touch.clientX, touch.clientY);
             }
         });
         canvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
             const touch = e.touches[0];
-            drawCrosshair(touch.clientX, touch.clientY);
-            continueDrawing(touch.clientX, touch.clientY);
+            if (currentMode === 'ref') {
+                previewRefPoint(touch.clientX, touch.clientY);
+            } else {
+                drawCrosshair(touch.clientX, touch.clientY);
+                continueDrawing(touch.clientX, touch.clientY);
+            }
             showMagnifier(touch.clientX, touch.clientY);
         });
         canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
             hideMagnifier();
-            clearCrosshair();
-            stopDrawing();
+            if (currentMode === 'ref') {
+                openRefPopup();
+            } else {
+                clearCrosshair();
+                stopDrawing();
+            }
         });
 
         // ═══════════════════════════════════════
@@ -1181,21 +1193,37 @@
             updateStepIndicator();
         }
 
-        // Canvas'a tıklandığında (ref modunda)
-        function handleRefClick(clientX, clientY) {
+        // 1. Parmak/mouse basınca: noktayı seç ve önizleme göster (popup açma)
+        function previewRefPoint(clientX, clientY) {
             if (points.length < 2) {
                 alert('Önce çizimi tamamlayın, sonra referans noktası ekleyin.');
                 return;
             }
             const pt = canvasPointFromXY(clientX, clientY);
             const snapped = getNearestDrawnPoint(pt);
-            if (!snapped) {
-                alert('Çizgi bulunamadı. Lütfen tekrar deneyin.');
-                return;
-            }
+            if (!snapped) return;
+
             pendingRefClick = { x: snapped.x, y: snapped.y };
+
+            // Overlay'de önizleme işareti: büyük sarı daire
+            const oc = overlayCtx;
+            oc.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            oc.beginPath();
+            oc.arc(snapped.x, snapped.y, 14, 0, Math.PI * 2);
+            oc.strokeStyle = '#fbbf24';
+            oc.lineWidth = 3;
+            oc.stroke();
+            oc.beginPath();
+            oc.arc(snapped.x, snapped.y, 4, 0, Math.PI * 2);
+            oc.fillStyle = '#fbbf24';
+            oc.fill();
+        }
+
+        // 2. Parmak/mouse kalkınca: popup aç
+        function openRefPopup() {
+            if (!pendingRefClick) return;
+            clearCrosshair();
             updateReferenceUITexts();
-            // Popup'ı aç
             document.getElementById('overlay').style.display = 'block';
             document.getElementById('tempPopup').style.display = 'block';
             document.getElementById('tempInput').value = '';
