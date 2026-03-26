@@ -1,67 +1,142 @@
 # 🌡️ Termogram Dijitalleştirici
 
-Kandilli Meteoroloji Laboratuvarı İklim İstasyonu'nun 1911–2005 yılları arasında kaydedilmiş tarihsel termogram verilerini, gönüllü kullanıcıların katılımıyla dijitalleştirmeyi amaçlayan bir citizen science (vatandaş bilimi) platformu.
+> Kandilli Meteoroloji Laboratuvarı'nın 1911–2005 yılları arasında kaydettiği ~35.000 termogram arşivini, gönüllü kullanıcıların katılımıyla dijitalleştiren bir vatandaş bilimi platformu.
 
-Bu proje, **Boğaziçi Meteoroloji Hackathonu'nda**  geliştirilmiştir.
+**[🚀 Canlı Demo](https://berkkbalci.github.io/termogram-digitizer/)** &nbsp;·&nbsp; **[GitHub](https://github.com/berkkbalci/termogram-digitizer)**
 
-## Proje Hakkında
+---
 
-Termogramlar, sıcaklık değişimlerini sürekli olarak kâğıt üzerine kaydeden analog cihazların ürettiği grafiklerdir. Yaklaşık 100 yıllık bu arşiv, iklim araştırmaları için son derece değerli bir veri kaynağıdır.
+## Neden Bu Proje?
 
-Bu platform, termogram görsellerindeki sıcaklık eğrilerini dijitalleştirmek için oyunlaştırma (gamification) yaklaşımını kullanır. Kullanıcılar, ekranlarında gördükleri termogram üzerindeki mavi sıcaklık çizgisini mouse ile takip eder. Bu takip sırasında toplanan piksel koordinatları, kalibrasyon verileri kullanılarak gerçek sıcaklık (°C) ve zaman (tarih/saat) değerlerine dönüştürülür ve veritabanına kaydedilir.
+İstanbul'un yaklaşık 100 yıllık iklim geçmişi kâğıt üzerinde hapsolmuş durumda. Bu termogramlar, sıcaklık değişimlerini dakika dakika kaydeden analog cihazların çıktılarıdır ve iklim araştırmaları için son derece değerli birincil veriler içerir.
 
-### Neden İnsan Gücü?
+**Sorun:** OCR ve Computer Vision yöntemleri bu kayıtlar için güvenilir çalışmıyor. Solmuş mürekkep, yırtılmış kâğıt, üst üste binen çizgiler ve ızgara çizgileriyle iç içe geçen eğriler otomatik algoritmaları yanıltıyor.
 
-OCR ve Computer Vision teknikleri düz metinler için oldukça başarılı olsa da, termogram verileri bu yöntemler için ciddi zorluklar içerir. Solmuş mürekkep, yırtılmış kâğıt, üst üste binmiş çizgiler ve ızgara çizgileriyle karışan eğriler gibi sorunlar, otomatik algoritmaların güvenilirliğini düşürür. İnsan gözü ise bu tür görsel belirsizlikleri çözmekte çok daha başarılıdır. Oyunlaştırma sayesinde bu insan gücü ölçeklenebilir hale getirilmiştir.
+**Çözüm:** İnsan gözü. Oyunlaştırma sayesinde bu insan gücünü ölçeklenebilir hale getirdik.
 
-### Çapraz Doğrulama
-
-Veri kalitesini garanti altına almak için her termogram **3 farklı gönüllü** tarafından bağımsız olarak çizilir. Üç çizim birbirine ne kadar yakınsa, dijitalleştirilen veri o kadar güvenilir kabul edilir. Bu yaklaşım, Zooniverse ve Galaxy Zoo gibi başarılı citizen science projelerinde de kullanılan bir yöntemdir.
+---
 
 ## Nasıl Çalışır?
 
-Kullanıcı siteye girdiğinde bir isim girerek başlar. Sistem, görsel havuzundan henüz tamamlanmamış ve bu kullanıcının daha önce çizmediği bir termogramı rastgele seçerek ekrana getirir. Kullanıcı mouse'un sol tuşuna basılı tutarak termogramdaki mavi sıcaklık eğrisini soldan sağa takip eder. Takip sırasında çizilen kırmızı çizgi ekranda anlık olarak görünür. Çizim tamamlandığında "Gönder" butonuna basılır ve toplanan koordinatlar otomatik olarak sıcaklık/zaman değerlerine dönüştürülerek Firebase veritabanına kaydedilir. Ardından sistem otomatik olarak yeni bir termogram getirir.
+1. **Giriş** — Kullanıcı bir kullanıcı adı girerek platforma katılır (hesap gerekmez)
+2. **Çizim** — Sistem, henüz tamamlanmamış bir termogram görseli sunar; kullanıcı sol tıkla basılı tutarak sıcaklık eğrisini soldan sağa takip eder
+3. **Kalibrasyon** — `Ctrl + tık` ile grafik üzerindeki bilinen sıcaklık değerlerine referans noktaları eklenir; sistem bu noktaları kullanarak piksel koordinatlarını gerçek sıcaklık/zaman verilerine dönüştürür
+4. **Gönderim** — Çizim Firebase'e kaydedilir, XP kazanılır ve sistem otomatik olarak yeni bir termogram getirir
 
-## Teknoloji Altyapısı
+---
 
-Proje tamamen statik bir mimari üzerine kurulmuştur. Sunucu tarafında çalışan bir kod bulunmaz, bu sayede SQL injection gibi sunucu taraflı saldırı vektörleri baştan elenir.
+## Oyunlaştırma Sistemi
 
-**Frontend:** Tek bir `index.html` dosyası içinde HTML, CSS ve vanilla JavaScript kullanılmıştır. Herhangi bir framework veya build aracı gerektirmez. Termogram görselleri HTML5 Canvas API kullanılarak gösterilir ve mouse olayları ile piksel koordinatları toplanır.
+Gönüllüleri motive etmek ve veri akışını sürdürmek için tam bir ilerleme sistemi kuruldu:
 
-**Backend:** Google Firebase platformu kullanılmaktadır. Firestore veritabanı termogram metadata'sını ve çizim verilerini saklar. Firebase Authentication ile anonim kullanıcı girişi sağlanır. Güvenlik, Firestore Security Rules ile kontrol edilir.
+| Özellik | Detay |
+|---|---|
+| **Temel XP** | Her çizim için 50 XP |
+| **Referans Bonusu** | 2+ referans noktası eklenirse +20 XP |
+| **Günlük Seri** | Ardışık gün sayısına göre 1×–2× çarpan (10. günde maksimum) |
+| **Seviye Sistemi** | 10 seviye, 0 XP'den 5.000 XP'ye kadar |
+| **Liderboard** | En çok XP kazanan 10 kullanıcı |
 
-**Hosting:** GitHub Pages üzerinden ücretsiz olarak sunulmaktadır.
+---
+
+## Veri Kalitesi: Çapraz Doğrulama
+
+Her termogram **3 farklı gönüllü** tarafından bağımsız olarak çizilir. Üç çizim birbirine ne kadar yakınsa, dijitalleştirilen veri o kadar güvenilirdir.
+
+- Medyan tabanlı aykırı değer tespiti uygulanır
+- Her iz için MAE ve z-skoru hesaplanır
+- Ortalama z-skoru 2.5'i geçen izler otomatik olarak işaretlenir
+
+Bu yaklaşım, Zooniverse ve Galaxy Zoo gibi başarılı vatandaş bilimi projelerinde kullanılan yöntemle örtüşmektedir.
+
+---
+
+## Teknoloji
+
+| Katman | Teknoloji |
+|---|---|
+| Frontend | Vanilla HTML5 / CSS3 / JavaScript (framework yok) |
+| Çizim Motoru | HTML5 Canvas API |
+| Veritabanı | Google Firestore |
+| Kimlik Doğrulama | Firebase Anonymous Auth |
+| Hosting | GitHub Pages |
+| Görsel İşleme | Python (Pillow) — TIF → PNG dönüştürme |
+
+Sunucu tarafında çalışan hiçbir kod yoktur. Tüm uygulama tek bir `index.html` dosyasıdır.
+
+---
 
 ## Proje Yapısı
 
 ```
 termogram-digitizer/
-├── index.html              → Ana uygulama (tek dosya)
-├── images/                 → Termogram görselleri (PNG formatında)
-│   ├── 1976_MART-01.png
-│   ├── 1977_MAYIS-03.png
-│   ├── 1977_NòSAN-04.png
-│   ├── 1977_NòSAN-25.png
-│   ├── 1981_ûUBAT-13.png
-│   ├── 1985_EYLöL-01.png
-│   ├── 1985_EYLöL-17.png
-│   ├── 1991_ûUBAT-05.png
-│   ├── 1998_MART-05.png
-│   └── 1998_MART-16.png
+├── index.html              → Ana uygulama
+├── admin.html              → Çapraz doğrulama analiz paneli
+├── images/
+│   ├── termogram/          → Sıcaklık kayıtları
+│   ├── barograf/           → Hava basıncı kayıtları
+│   ├── nem/                → Nem kayıtları
+│   └── aktinograf/         → Güneş radyasyonu kayıtları
 ├── scripts/
-│   └── seed-firestore.html → Firestore'a görsel havuzunu yükleyen tek seferlik araç
+│   ├── seed-firestore.html → Firestore'a görsel havuzunu yükleyen tek seferlik araç
+│   └── tif_to_png.py       → TIF → PNG toplu dönüştürücü
 └── README.md
 ```
 
-## Kurulum ve Çalıştırma
+---
 
-### Gereksinimler
+## Veri Formatı
 
-Projeyi yerel ortamda çalıştırmak için yalnızca bir web tarayıcısı ve basit bir HTTP sunucusu gereklidir. Herhangi bir paket yüklemeye gerek yoktur.
+Firestore'da üç koleksiyon kullanılmaktadır.
+
+**`termograms`** — Her termogram görseli için bir belge:
+```json
+{
+  "imageFile": "images/termogram/1981_SUBAT-13.png",
+  "dataType": "termogram",
+  "startDate": "1981-02-13T00:00:00Z",
+  "endDate": "1981-02-14T00:00:00Z",
+  "tempMin": 0,
+  "tempMax": 40,
+  "traceCount": 1,
+  "maxTraces": 3,
+  "status": "active"
+}
+```
+
+**`traces`** — Her kullanıcı çizimi için bir belge:
+```json
+{
+  "termogramId": "abc123",
+  "userId": "anon-xyz",
+  "userName": "berk",
+  "pointCount": 842,
+  "referencePoints": [...],
+  "calibratedData": [
+    { "timestamp": "1981-02-13T08:30:00Z", "temperature": 6.2 }
+  ]
+}
+```
+
+**`users`** — Oyunlaştırma verileri:
+```json
+{
+  "userName": "berk",
+  "totalXP": 1340,
+  "level": 5,
+  "tracesCompleted": 22,
+  "streakDays": 4,
+  "lastActiveDate": "2026-03-26"
+}
+```
+
+Ham piksel koordinatları da saklanır; ileride yeniden kalibrasyon gerekirse mevcut veriler işlenebilir.
+
+---
+
+## Kurulum
 
 ### Yerel Geliştirme
-
-Repoyu klonladıktan sonra proje klasöründe bir yerel sunucu başlatmanız yeterlidir. Dosyayı doğrudan `file:///` protokolü ile açmak, Firebase SDK'sının ve görsellerin düzgün çalışmamasına neden olabilir.
 
 ```bash
 git clone https://github.com/berkkbalci/termogram-digitizer.git
@@ -69,29 +144,41 @@ cd termogram-digitizer
 python3 -m http.server 8000
 ```
 
-Ardından tarayıcıda `http://localhost:8000` adresini açın.
+Tarayıcıda `http://localhost:8000` adresini açın.
 
-### Firebase Kurulumu (Yeni Bir Ortam İçin)
+> `file:///` protokolü ile doğrudan açmak Firebase SDK'sının ve görsellerin düzgün çalışmamasına neden olabilir.
 
-Projeyi sıfırdan kurmak isteyenler için Firebase tarafındaki adımlar şu şekildedir. Önce Firebase Console'da yeni bir proje oluşturun. Authentication bölümünde Anonymous sign-in yöntemini aktifleştirin. Firestore Database oluşturun. Proje ayarlarından web uygulaması ekleyip `firebaseConfig` değerlerini `index.html`'deki ilgili alana yapıştırın. Son olarak `scripts/seed-firestore.html` dosyasındaki config değerlerini de güncelleyip bu dosyayı tarayıcıda açarak "Yükle" butonuna basın. Bu işlem termogram metadata'sını Firestore'a yükleyecektir.
+### Firebase Kurulumu (Sıfırdan)
 
-## Veri Formatı
+1. [Firebase Console](https://console.firebase.google.com)'da yeni proje oluşturun
+2. **Authentication → Anonymous** sign-in yöntemini aktifleştirin
+3. **Firestore Database** oluşturun
+4. Proje ayarlarından web uygulaması ekleyin, `firebaseConfig` değerlerini `index.html`'deki ilgili alana yapıştırın
+5. `scripts/seed-firestore.html` dosyasındaki config değerlerini güncelleyip tarayıcıda açın ve "Yükle" butonuna basın
 
-Firestore'da iki koleksiyon kullanılmaktadır.
+### Görsel Dönüştürme
 
-**`termograms` koleksiyonu** her termogram görseli için bir belge içerir. Bu belgede görselin dosya yolu, tarih aralığı, sıcaklık ölçeği, kalibrasyon için ızgara köşelerinin piksel koordinatları, kaç kez çizildiği ve tamamlanıp tamamlanmadığı bilgisi bulunur.
-
-**`traces` koleksiyonu** her çizim işlemi için bir belge içerir. Bu belgede hangi termogramın çizildiği, hangi kullanıcının çizdiği, ham piksel koordinatları (ileride yeniden kalibrasyon gerekirse diye) ve kalibre edilmiş sıcaklık/zaman değerleri saklanır.
-
-Kalibre edilmiş veriler şu formatta kaydedilir:
-
-```json
-{
-  "timestamp": "1981-02-13T14:30:00.000Z",
-  "temperature": 18.3
-}
+```bash
+pip install Pillow
+python3 scripts/tif_to_png.py
 ```
+
+---
+
+## Admin Paneli
+
+`admin.html` dosyası yetkili kullanıcılar için bir analiz arayüzü sunar:
+
+- Çapraz doğrulama sonuçlarını görüntüleme
+- İz kalitesi metrikleri (MAE, z-skoru)
+- Liderboard yönetimi
+- Puanlama formülü detayları
+
+---
 
 ## Katkıda Bulunanlar
 
-Bu proje Meteoroloji Hackathon 2026 kapsamında **Berk Balcı ve Burak Ceylan tarafından Birkan Yılmaz hocamızın katkılarıyla** geliştirilmiştir.
+Bu proje **Boğaziçi Meteoroloji Hackathonu 2026** kapsamında geliştirilmiştir.
+
+**Geliştirme:** Berk Balcı, Burak Ceylan
+**Danışman:** Birkan Yılmaz
