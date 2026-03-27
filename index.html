@@ -1700,12 +1700,14 @@
                 // Her "Başla" tıklamasında yeni bir session ID üret —
                 // böylece aynı cihazdan farklı kişiler birbirinden bağımsız kullanıcı olur.
                 if (!window.auth.currentUser) await signInAnonymously(window.auth);
-                const sessionId = crypto.randomUUID();
+                const fbUid = window.auth.currentUser.uid; // Firestore yazmaları için gerçek Auth UID
+                const sessionId = crypto.randomUUID();     // İz (trace) sahibi olarak benzersiz oturum
                 currentUser = { uid: sessionId, displayName: name };
 
                 // Create or load user document
+                // Not: Firestore'a yazarken fbUid kullanılır (request.auth.uid eşleşmesi için).
                 const { doc, getDoc, setDoc } = window.fbImports;
-                const userRef = doc(window.db, 'users', currentUser.uid);
+                const userRef = doc(window.db, 'users', fbUid);
                 const userSnap = await getDoc(userRef);
                 if (userSnap.exists()) {
                     currentUserData = userSnap.data();

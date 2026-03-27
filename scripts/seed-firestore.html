@@ -443,30 +443,45 @@
         window.updateGridOnly = async function () {
             if (!confirm('Tüm termogramların grid değerleri GRID_PRESETS ile güncellenecek.\nÇizim verileri korunacak. Devam?')) return;
             document.getElementById('log').textContent = '📐 Grid değerleri güncelleniyor...\n\n';
+
+            // Auth token tazeliğini garantile
+            try { await signInAnonymously(auth); } catch (_) { /* zaten giriş yapılmış */ }
+
+            let snap;
             try {
-                // collection, getDocs, doc, updateDoc modül scope'ta mevcut
-                const snap = await getDocs(collection(db, 'termograms'));
-                let updated = 0;
-                for (const docSnap of snap.docs) {
-                    const data = docSnap.data();
-                    const preset = GRID_PRESETS[data.dataType];
-                    if (!preset) { log(`  ⚠️ ${docSnap.id}: bilinmeyen tür, atlandı\n`); continue; }
-                    await updateDoc(doc(db, 'termograms', docSnap.id), {
+                snap = await getDocs(collection(db, 'termograms'));
+            } catch (err) {
+                log(`\n❌ Termogramlar okunamadı: ${err.message}\n`);
+                return;
+            }
+
+            let updated = 0, skipped = 0, failed = 0;
+            for (const docSnap of snap.docs) {
+                const data = docSnap.data();
+                const preset = GRID_PRESETS[data.dataType];
+                if (!preset) {
+                    log(`  ⚠️ ${docSnap.id}: bilinmeyen tür (${data.dataType}), atlandı\n`);
+                    skipped++;
+                    continue;
+                }
+                try {
+                    await setDoc(doc(db, 'termograms', docSnap.id), {
                         gridLeft:  preset.gridLeft,
                         gridRight: preset.gridRight,
                         gridTop:   preset.gridTop,
                         gridBottom:preset.gridBottom,
                         tempMin:   preset.tempMin,
                         tempMax:   preset.tempMax
-                    });
+                    }, { merge: true }); // merge: mevcut alanları koru, sadece grid'i yaz
                     log(`  ✓ ${docSnap.id} grid güncellendi\n`);
                     updated++;
+                } catch (err) {
+                    log(`  ❌ ${docSnap.id} güncellenemedi: ${err.message}\n`);
+                    failed++;
                 }
-                log(`\n✅ ${updated} termogram grid değerleri güncellendi. Çizimler korundu.\n`);
-                listPhotos();
-            } catch (err) {
-                log(`\n❌ Hata: ${err.message}\n`);
             }
+            log(`\n${updated > 0 ? '✅' : '⚠️'} ${updated} güncellendi, ${skipped} atlandı, ${failed} başarısız.\n`);
+            listPhotos();
         };
 
         // Sayfa açılınca listeyi yükle
