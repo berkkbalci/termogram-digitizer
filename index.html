@@ -1701,8 +1701,8 @@
                 // böylece aynı cihazdan farklı kişiler birbirinden bağımsız kullanıcı olur.
                 if (!window.auth.currentUser) await signInAnonymously(window.auth);
                 const fbUid = window.auth.currentUser.uid; // Firestore yazmaları için gerçek Auth UID
-                const sessionId = crypto.randomUUID();     // İz (trace) sahibi olarak benzersiz oturum
-                currentUser = { uid: sessionId, displayName: name };
+                const sessionId = crypto.randomUUID();     // Aynı cihazdan farklı kişileri ayırt eder
+                currentUser = { uid: sessionId, fbUid: fbUid, displayName: name };
 
                 // Create or load user document
                 // Not: Firestore'a yazarken fbUid kullanılır (request.auth.uid eşleşmesi için).
@@ -1906,8 +1906,8 @@
                     await updateDoc(termRef, updateData);
                 }
 
-                // Kullanıcı dokümanını güncelle
-                const userRef = doc(window.db, 'users', currentUser.uid);
+                // Kullanıcı dokümanını güncelle (fbUid ile, Firestore kuralı gereği)
+                const userRef = doc(window.db, 'users', currentUser.fbUid || currentUser.uid);
                 await updateDoc(userRef, {
                     totalXP: increment(xpEarned),
                     tracesCompleted: increment(1)
