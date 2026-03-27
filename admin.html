@@ -458,8 +458,8 @@
     </div>
 
     <div class="tab-bar">
-        <div class="tab active" onclick="switchTab('analysis')">🔬 Termogram Analizi</div>
-        <div class="tab" onclick="switchTab('leaderboard')">🏆 Genel Sıralama</div>
+        <div class="tab active" onclick="switchTab(event,'analysis')">🔬 Termogram Analizi</div>
+        <div class="tab" onclick="switchTab(event,'leaderboard')">🏆 Genel Sıralama</div>
     </div>
 
     <!-- TAB 1 -->
@@ -715,9 +715,9 @@
         // TAB GEÇİŞİ + VERİ YÜKLEME
         // ═══════════════════════════════════════
 
-        function switchTab(tabName) {
+        function switchTab(e, tabName) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
+            if (e && e.currentTarget) e.currentTarget.classList.add('active');
             document.getElementById('analysisTab').classList.toggle('active', tabName === 'analysis');
             document.getElementById('leaderboardTab').classList.toggle('active', tabName === 'leaderboard');
             if (tabName === 'leaderboard') buildLeaderboard();
@@ -1014,6 +1014,7 @@
         }
 
         function showUserDetail(userId) {
+            if (!window._leaderboardUsers) return;
             const user = window._leaderboardUsers.find(u => u.userId === userId);
             if (!user) return;
             const area = document.getElementById('userDetailArea');

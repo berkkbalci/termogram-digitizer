@@ -1792,12 +1792,16 @@
 
             try {
                 const selectedType = document.getElementById('dataTypeFilter').value;
-                const constraints = [where('status', '==', 'available')];
-                if (selectedType) constraints.push(where('dataType', '==', selectedType));
-                const q = query(collection(window.db, 'termograms'), ...constraints);
+                // Sadece status filtresi Firestore'da uygulanır (composite index gerekmez).
+                // dataType filtresi istemci tarafında uygulanır.
+                const q = query(collection(window.db, 'termograms'), where('status', '==', 'available'));
                 const snapshot = await getDocs(q);
 
-                if (snapshot.empty) {
+                const filteredDocs = selectedType
+                    ? snapshot.docs.filter(d => d.data().dataType === selectedType)
+                    : snapshot.docs;
+
+                if (filteredDocs.length === 0) {
                     document.getElementById('statusText').textContent = 'Bu tipte mevcut kayıt yok.';
                     return;
                 }
@@ -1805,7 +1809,7 @@
                 const tracesQ = query(collection(window.db, 'traces'), where('userId', '==', currentUser.uid));
                 const tracesSnap = await getDocs(tracesQ);
                 const alreadyTraced = new Set(tracesSnap.docs.map(d => d.data().termogramId));
-                const available = snapshot.docs.filter(d => !alreadyTraced.has(d.id));
+                const available = filteredDocs.filter(d => !alreadyTraced.has(d.id));
 
                 if (available.length === 0) {
                     // Fix C: hint to change filter when a type filter is active
