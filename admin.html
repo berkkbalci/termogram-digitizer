@@ -649,14 +649,25 @@
             const a = (n * sumYT - sumY * sumT) / denom;
             const b = (sumT - a * sumY) / n;
 
-            // Sağlamlık kontrolü: grid orta noktasındaki tahmin,
-            // beklenen değer aralığının 2 katı dışındaysa kalibrasyon geçersizdir.
             if (termogram) {
+                const range = Math.abs(termogram.tempMax - termogram.tempMin);
+                const gridH = Math.abs(termogram.gridBottom - termogram.gridTop);
+
+                // Kontrol 1: Eğim yönü ve büyüklüğü
+                // Beklenen eğim = (tempMin - tempMax) / (gridBottom - gridTop)
+                // Gerçek eğim bu beklentinin 0.05x ile 20x arasında olmalı.
+                // Aşırı eğim → bir kullanıcı referans noktasını çok yanlış yere koymuş demektir.
+                const expectedA = (termogram.tempMin - termogram.tempMax) / (termogram.gridBottom - termogram.gridTop);
+                if (Math.abs(expectedA) > 1e-10) {
+                    const slopeRatio = a / expectedA;
+                    if (slopeRatio < 0.05 || slopeRatio > 20) return null;
+                }
+
+                // Kontrol 2: Grid orta noktasındaki tahmin ±%50 aralığında mı?
                 const midY = (termogram.gridTop + termogram.gridBottom) / 2;
                 const predictedMid = a * midY + b;
-                const range = Math.abs(termogram.tempMax - termogram.tempMin);
-                const lo = Math.min(termogram.tempMin, termogram.tempMax) - range;
-                const hi = Math.max(termogram.tempMin, termogram.tempMax) + range;
+                const lo = Math.min(termogram.tempMin, termogram.tempMax) - range * 0.5;
+                const hi = Math.max(termogram.tempMin, termogram.tempMax) + range * 0.5;
                 if (predictedMid < lo || predictedMid > hi) return null;
             }
 
