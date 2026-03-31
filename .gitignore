@@ -143,3 +143,5 @@ scripts/seed-firestore.html
 
 .DS_Store
 **/.DS_Store
+
+.env
