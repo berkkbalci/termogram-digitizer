@@ -1,4 +1,4 @@
-# 🌡️ Termogram Dijitalleştirici
+# 🌡️ Termogram Dijitalleştirici v1
 
 > Kandilli Meteoroloji Laboratuvarı'nın 1911–2005 yılları arasında kaydettiği ~35.000 termogram arşivini, gönüllü kullanıcıların katılımıyla dijitalleştiren bir vatandaş bilimi platformu.
 
