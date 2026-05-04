@@ -145,3 +145,4 @@ scripts/seed-firestore.html
 **/.DS_Store
 
 .env
+serviceAccountKey.json

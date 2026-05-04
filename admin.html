@@ -10,7 +10,7 @@
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
         import { getFirestore, collection, getDocs, query, where }
             from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-        import { getAuth, signInAnonymously }
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
             from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
         const app = initializeApp({
@@ -23,8 +23,9 @@
         });
         const db = getFirestore(app);
         const auth = getAuth(app);
-        await signInAnonymously(auth);
         window.db = db;
+        window.auth = auth;
+        window.fireAuth = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
         window.fireImports = { collection, getDocs, query, where };
     </script>
 
@@ -453,8 +454,24 @@
 </head>
 
 <body>
+    <!-- Admin login ekranı -->
+    <div id="adminLoginScreen" style="position:fixed;inset:0;background:#0f172a;display:flex;align-items:center;justify-content:center;z-index:9999;">
+        <div style="background:#1e293b;padding:40px;border-radius:12px;width:340px;border:1px solid #334155;">
+            <h2 style="color:#93c5fd;margin-bottom:8px;">🔒 Admin Girişi</h2>
+            <p style="color:#94a3b8;font-size:0.85rem;margin-bottom:20px;">Bu panele yalnız admin yetkili hesap erişebilir.</p>
+            <input id="adminEmail" type="email" placeholder="E-posta" autocomplete="username"
+                style="width:100%;padding:10px 14px;margin-bottom:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;font-size:0.95rem;">
+            <input id="adminPassword" type="password" placeholder="Şifre" autocomplete="current-password"
+                style="width:100%;padding:10px 14px;margin-bottom:14px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;font-size:0.95rem;">
+            <button id="adminLoginBtn" onclick="adminLogin()"
+                style="width:100%;padding:10px;border-radius:8px;border:none;background:#3b82f6;color:#fff;font-weight:600;cursor:pointer;">Giriş Yap</button>
+            <div id="adminLoginError" style="color:#fca5a5;font-size:0.8rem;margin-top:10px;min-height:1.2em;"></div>
+        </div>
+    </div>
+
     <div class="top-bar">
         <h1>📊 Admin Panel — Çapraz Doğrulama Analizi</h1>
+        <button onclick="adminLogout()" style="background:#475569;color:#e2e8f0;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;">Çıkış</button>
     </div>
 
     <div class="tab-bar">
@@ -740,7 +757,68 @@
 
             populateTermogramSelect(allTermograms);
         }
-        init();
+
+        // ─── Admin auth gate ───
+        function waitForAuth() {
+            return new Promise(resolve => {
+                const check = () => (window.auth && window.fireAuth) ? resolve() : setTimeout(check, 100);
+                check();
+            });
+        }
+
+        async function verifyAdminAndShowApp(user) {
+            // ID token'ı zorla yenile ki yeni atanan claim'ler hemen yansısın.
+            const idTokenResult = await user.getIdTokenResult(true);
+            if (idTokenResult.claims.admin !== true) {
+                document.getElementById('adminLoginError').textContent =
+                    'Bu hesabın admin yetkisi yok.';
+                await window.fireAuth.signOut(window.auth);
+                return false;
+            }
+            document.getElementById('adminLoginScreen').style.display = 'none';
+            await init();
+            return true;
+        }
+
+        async function adminLogin() {
+            const email = document.getElementById('adminEmail').value.trim();
+            const pwd = document.getElementById('adminPassword').value;
+            const errEl = document.getElementById('adminLoginError');
+            const btn = document.getElementById('adminLoginBtn');
+            errEl.textContent = '';
+            if (!email || !pwd) { errEl.textContent = 'E-posta ve şifre gerekli.'; return; }
+            btn.disabled = true; btn.textContent = 'Giriş yapılıyor...';
+            try {
+                await waitForAuth();
+                const cred = await window.fireAuth.signInWithEmailAndPassword(window.auth, email, pwd);
+                await verifyAdminAndShowApp(cred.user);
+            } catch (e) {
+                errEl.textContent = 'Giriş başarısız: ' + (e.code || e.message);
+            } finally {
+                btn.disabled = false; btn.textContent = 'Giriş Yap';
+            }
+        }
+        window.adminLogin = adminLogin;
+
+        async function adminLogout() {
+            await window.fireAuth.signOut(window.auth);
+            location.reload();
+        }
+        window.adminLogout = adminLogout;
+
+        // Sayfa açılışında: zaten oturum açıkken claim'leri yeniden doğrula.
+        (async function bootstrapAuth() {
+            await waitForAuth();
+            window.fireAuth.onAuthStateChanged(window.auth, async (user) => {
+                if (user) {
+                    await verifyAdminAndShowApp(user);
+                }
+            });
+        })();
+
+        document.getElementById('adminPassword').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') adminLogin();
+        });
 
         function populateTermogramSelect(list) {
             const select = document.getElementById('termogramSelect');
